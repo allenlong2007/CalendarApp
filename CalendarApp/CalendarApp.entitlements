@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	iCloud/CloudKit is deliberately omitted here: the free "Personal Team"
+	Apple ID this project is currently signed with cannot provision the
+	iCloud capability at all. ModelContainerFactory already falls back to
+	local-only SwiftData storage gracefully when CloudKit isn't available,
+	so the app is fully functional without this -- just without
+	cross-device sync of Planner/templates/completion-status data.
+
+	Once a paid Apple Developer account is added as the signing team, add
+	these keys back to re-enable CloudKit sync:
+
+	<key>com.apple.developer.icloud-container-identifiers</key>
+	<array>
+		<string>iCloud.com.footsoregnu3115.calendarapp</string>
+	</array>
+	<key>com.apple.developer.icloud-services</key>
+	<array>
+		<string>CloudKit</string>
+	</array>
+	-->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.footsoregnu3115.calendarapp</string>
+	</array>
+	<!--
+	Mac Catalyst's Calendar-access bridging appears to need this declared
+	explicitly to register a request with TCC at all, even though this app
+	isn't sandboxed (com.apple.security.app-sandbox is not set) -- without
+	it, requestFullAccessToEvents() resolved to false immediately and the
+	app never appeared in System Settings > Privacy & Security > Calendars.
+	-->
+	<key>com.apple.security.personal-information.calendars</key>
+	<true/>
+</dict>
+</plist>

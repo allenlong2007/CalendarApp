@@ -1,0 +1,101 @@
+name: CalendarApp
+options:
+  bundleIdPrefix: com.footsoregnu3115
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    PRODUCT_NAME: "$(TARGET_NAME)"
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    DEVELOPMENT_TEAM: "WA5MY2JWD8"
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+targets:
+  CalendarApp:
+    type: application
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: CalendarApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.footsoregnu3115.calendarapp
+        CODE_SIGN_ENTITLEMENTS: CalendarApp/CalendarApp.entitlements
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription: "This calendar app needs access to your calendars to show and create events."
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Used to prioritize nearby places when searching for an event location."
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MACCATALYST: YES
+        DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER: NO
+    info:
+      path: Generated-Info.plist
+      properties:
+        CFBundleURLTypes:
+          - CFBundleURLName: com.footsoregnu3115.calendarapp.oauth
+            CFBundleURLSchemes:
+              - com.footsoregnu3115.calendarapp
+    dependencies:
+      - target: CalendarAppWidgets
+        embed: true
+
+  CalendarAppWidgets:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: CalendarAppWidgets
+      - path: CalendarApp/App/AppTheme.swift
+        buildPhase: sources
+      - path: CalendarApp/Resources/Assets.xcassets
+        buildPhase: resources
+      - path: CalendarApp/Views/Shared/DateMath.swift
+        buildPhase: sources
+      - path: CalendarApp/Views/Shared/EventStatusColor.swift
+        buildPhase: sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.footsoregnu3115.calendarapp.CalendarAppWidgets
+        CODE_SIGN_ENTITLEMENTS: CalendarAppWidgets/CalendarAppWidgets.entitlements
+        INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription: "Widgets show your upcoming events."
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MACCATALYST: YES
+        DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER: NO
+    info:
+      path: CalendarAppWidgetsGenerated-Info.plist
+      properties:
+        CFBundleDisplayName: CalendarApp Widgets
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+
+  CalendarAppTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: CalendarAppTests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: CalendarApp
+
+schemes:
+  CalendarApp:
+    build:
+      targets:
+        CalendarApp: all
+        CalendarAppTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - CalendarAppTests
