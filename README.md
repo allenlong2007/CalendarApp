@@ -1,6 +1,6 @@
 # CalendarApp
 
-A native iOS/macOS calendar app that replaced a web-app calendar with one backed by real iCloud Calendar data — home screen widgets, Lock Screen widgets, and Siri support that a PWA could never provide.
+A calendar app I built for myself, for iPhone and Mac. It replaced a website version I'd made earlier, so I could get real widgets, lock screen info, and Siri support — things a website just can't do.
 
 <p align="center">
   <img src="docs/screenshots/01_month.png" width="230" alt="Month view with events" />
@@ -8,35 +8,34 @@ A native iOS/macOS calendar app that replaced a web-app calendar with one backed
   <img src="docs/screenshots/03_agenda.png" width="230" alt="Agenda list view" />
 </p>
 
-## Overview
+## What it does
 
-I originally built my calendar as a Cloudflare Worker-hosted PWA, but a web app fundamentally can't offer OS-level integration — no home screen widgets, no Lock Screen glance, no Siri. So I rewrote it natively: real events live in **EventKit** (genuine iCloud Calendar data, not a custom database), which means they sync via iCloud for free and show up in Apple's own Calendar app and widgets automatically. App-only concepts EventKit has no room for — a separate day-planner, completion tracking, saved addresses, reusable templates — live alongside it in **SwiftData** with CloudKit sync.
+I originally built my calendar as a website. That worked fine, but a website can't show up as a home screen widget, can't put anything on your lock screen, and can't talk to Siri. So I rebuilt it as a real app.
+
+It uses Apple's own Calendar system underneath, so any event you make actually syncs through iCloud like normal — it shows up in the regular Calendar app too. On top of that, I added a separate "Planner" section for roughing out a plan for the week before turning it into real events, plus quick templates, saved addresses, and undo for anything you delete.
 
 ## Features
 
-- **Month / Week / Day / Agenda views** plus a full event editor with location search (MapKit) and color-coded categories
-- **Planner** — a separate scratch-planning surface (SwiftData-backed) for drafting a week before committing events to the real calendar, with duplicate-to-days and quick-add templates
-- **Completion tracking & undo** — mark events done, with a full undo toast for deletes and status changes
-- **Home Screen & Lock Screen widgets** (WidgetKit) — Next Event and Today's Agenda
-- **Siri / App Intents** — create an event or query your next event by voice, no app launch required
-- **Mac Catalyst support** — same codebase runs as a full Mac app, including Calendar permission handling for Catalyst's different TCC behavior
-- **One-time import** from the original PWA's export format, so switching over doesn't lose history
-- Optional **Gmail import** scaffold (OAuth PKCE + Gmail API + on-device event extraction) — gated behind a user-supplied Google Cloud client ID, off by default
+- Month, Week, Day, and Agenda views, with a full event editor and location search
+- Planner — a scratchpad for planning your week before committing to real events
+- Mark things done, with undo for deletes and changes
+- Home Screen and Lock Screen widgets showing your next event or today's schedule
+- Ask Siri to create an event or tell you what's next
+- Also works as a real Mac app, not just on iPhone
+- One-time import from my old website calendar, so I didn't lose anything switching over
+- Optional Gmail import to catch events buried in email (off by default — needs your own Google account setup)
 
-## Tech Stack
+## Built with
 
-Swift, SwiftUI, EventKit, SwiftData + CloudKit, WidgetKit, App Intents (Siri), MapKit, Mac Catalyst, XcodeGen.
+Swift and SwiftUI, EventKit (Apple's built-in calendar system), SwiftData with iCloud sync, WidgetKit, Siri Shortcuts, MapKit, and XcodeGen.
 
-## How It Works
+## How it's put together
 
-Two data layers, deliberately kept separate:
+Real calendar events live in Apple's own EventKit system, so they sync automatically and show up in Apple's Calendar app too — no extra syncing code to write or maintain. Everything the app has that a normal calendar doesn't — the Planner, marking things done, saved addresses, templates — lives in its own local database (SwiftData) that also syncs through iCloud.
 
-- **EventKit** owns anything that's a "real" calendar event — it's the source of truth, so it syncs across every Apple device and calendar app for free, with no custom sync code to write or maintain.
-- **SwiftData** (with `cloudKitDatabase: .automatic`) owns everything EventKit has no concept of: Planner scratch events before they're committed, completion status, saved addresses, and quick-add templates.
+Widgets and Siri both read from that same calendar data, so however you're checking your schedule, it's all coming from the same place.
 
-Widgets and Siri intents both read through the same `EventStoreManager` the main app uses, so there's one code path for "what does the user's calendar look like right now" regardless of surface.
-
-## Setup
+## Running it yourself
 
 ```bash
 git clone https://github.com/allenlong2007/CalendarApp.git
@@ -45,8 +44,8 @@ xcodegen generate
 open CalendarApp.xcodeproj
 ```
 
-Requires [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`) and Xcode 16+. Select the `CalendarApp` scheme, grant Calendar access on first launch, and run. Gmail import stays disabled until you supply your own OAuth client ID in `CalendarApp/Gmail/GoogleOAuthConfig.swift` (see the comment there — iOS OAuth clients use PKCE, so there's no secret to configure).
+You'll need [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`) and Xcode. Pick the CalendarApp scheme, allow calendar access when it asks, and run. Gmail import stays off until you add your own Google API key in `CalendarApp/Gmail/GoogleOAuthConfig.swift`.
 
 ## Status
 
-Complete and in daily personal use, running via Xcode on both iPhone Simulator and as a Mac Catalyst app. Not distributed on the App Store (personal-use project).
+Done, and I use it every day on both my iPhone and Mac. Not on the App Store — just for my own use.
