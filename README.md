@@ -1,6 +1,6 @@
 # CalendarApp
 
-A calendar app I built for myself, for iPhone and Mac. It replaced a website version I'd made earlier, so I could get real widgets, lock screen info, and Siri support — things a website just can't do.
+My own calendar app, for iPhone and Mac. Used to be a website, but I rebuilt it natively so it could actually do widgets, lock screen info, and Siri.
 
 <p align="center">
   <img src="docs/screenshots/01_month.png" width="230" alt="Month view with events" />
@@ -8,34 +8,34 @@ A calendar app I built for myself, for iPhone and Mac. It replaced a website ver
   <img src="docs/screenshots/03_agenda.png" width="230" alt="Agenda list view" />
 </p>
 
-## What it does
+## Why I rebuilt it
 
-I originally built my calendar as a website. That worked fine, but a website can't show up as a home screen widget, can't put anything on your lock screen, and can't talk to Siri. So I rebuilt it as a real app.
+I'd made my calendar as a website first, and it worked fine, but a website can't sit on your home screen as a widget, can't show up on your lock screen, and can't talk to Siri — that stuff is OS-level only. So I redid it as a real app.
 
-It uses Apple's own Calendar system underneath, so any event you make actually syncs through iCloud like normal — it shows up in the regular Calendar app too. On top of that, I added a separate "Planner" section for roughing out a plan for the week before turning it into real events, plus quick templates, saved addresses, and undo for anything you delete.
+Under the hood it uses Apple's own calendar system, so anything you add actually syncs through iCloud and shows up in the regular Calendar app too. I also added a "Planner" — basically a scratchpad for sketching out a week before it becomes real events — plus quick templates, saved addresses, and undo for when you delete something by accident.
 
-## Features
+## What it can do
 
-- Month, Week, Day, and Agenda views, with a full event editor and location search
-- Planner — a scratchpad for planning your week before committing to real events
+- Month, Week, Day, and Agenda views, plus a full event editor with location search
+- Planner mode for roughing out a week before it's official
 - Mark things done, with undo for deletes and changes
-- Home Screen and Lock Screen widgets showing your next event or today's schedule
-- Ask Siri to create an event or tell you what's next
-- Also works as a real Mac app, not just on iPhone
-- One-time import from my old website calendar, so I didn't lose anything switching over
-- Optional Gmail import to catch events buried in email (off by default — needs your own Google account setup)
+- Widgets for your next event or the day's schedule, home screen and lock screen
+- Ask Siri to add an event or tell you what's next
+- Runs as an actual Mac app too, not just iPhone
+- Pulled in everything from my old website calendar so I didn't lose history switching over
+- Gmail import if you want it (off by default, needs your own Google setup)
 
 ## Built with
 
-Swift and SwiftUI, EventKit (Apple's built-in calendar system), SwiftData with iCloud sync, WidgetKit, Siri Shortcuts, MapKit, and XcodeGen.
+Swift, SwiftUI, EventKit, SwiftData with iCloud sync, WidgetKit, Siri Shortcuts, MapKit, XcodeGen.
 
-## How it's put together
+## How it works
 
-Real calendar events live in Apple's own EventKit system, so they sync automatically and show up in Apple's Calendar app too — no extra syncing code to write or maintain. Everything the app has that a normal calendar doesn't — the Planner, marking things done, saved addresses, templates — lives in its own local database (SwiftData) that also syncs through iCloud.
+Real events live in EventKit, Apple's own calendar system, so they sync for free and show up in the actual Calendar app too — no extra syncing code on my end. Everything else the app does that a normal calendar can't — Planner, marking things done, saved addresses, templates — sits in its own local database that syncs through iCloud separately.
 
-Widgets and Siri both read from that same calendar data, so however you're checking your schedule, it's all coming from the same place.
+Widgets and Siri both pull from that same data, so however you're checking your schedule, it's all coming from one place.
 
-## Running it yourself
+## Running it
 
 ```bash
 git clone https://github.com/allenlong2007/CalendarApp.git
@@ -44,8 +44,8 @@ xcodegen generate
 open CalendarApp.xcodeproj
 ```
 
-You'll need [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`) and Xcode. Pick the CalendarApp scheme, allow calendar access when it asks, and run. Gmail import stays off until you add your own Google API key in `CalendarApp/Gmail/GoogleOAuthConfig.swift`.
+Needs [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`) and Xcode. Pick the CalendarApp scheme, let it have calendar access, and run it. Gmail import stays off until you drop your own Google API key into `CalendarApp/Gmail/GoogleOAuthConfig.swift`.
 
 ## Status
 
-Done, and I use it every day on both my iPhone and Mac. Not on the App Store — just for my own use.
+I use it every day, iPhone and Mac both. Never put it on the App Store — it's just for me.
