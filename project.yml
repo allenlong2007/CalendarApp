@@ -27,6 +27,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.footsoregnu3115.calendarapp
         CODE_SIGN_ENTITLEMENTS: CalendarApp/CalendarApp.entitlements
         GENERATE_INFOPLIST_FILE: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription: "This calendar app needs access to your calendars to show and create events."
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Used to prioritize nearby places when searching for an event location."

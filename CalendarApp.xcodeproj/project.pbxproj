@@ -670,6 +670,7 @@
 		A01612E77932C52DD6E5C857 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = CalendarApp/CalendarApp.entitlements;
 				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -689,6 +690,7 @@
 		A723EA7276EB426F14D2E855 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = CalendarApp/CalendarApp.entitlements;
 				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
 				GENERATE_INFOPLIST_FILE = YES;
