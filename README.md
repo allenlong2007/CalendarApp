@@ -20,11 +20,11 @@ There are Month, Week, Day, and Agenda views, plus a full event editor with loca
 
 ## Built with
 
-Swift, SwiftUI, EventKit, SwiftData with iCloud sync, WidgetKit, Siri Shortcuts, MapKit, XcodeGen.
+Swift, SwiftUI, EventKit, SwiftData, WidgetKit, Siri Shortcuts, MapKit, XcodeGen.
 
 ## How it works
 
-Real events live in EventKit, Apple's own calendar system. That means they sync for free and show up in the actual Calendar app too, with no extra syncing code needed on my end. Everything else the app does that a normal calendar can't, like Planner, marking things done, saved addresses, and templates, sits in its own local database that syncs through iCloud separately.
+Real events live in EventKit, Apple's own calendar system. That means they sync for free and show up in the actual Calendar app too, with no extra syncing code needed on my end. Everything else the app does that a normal calendar can't, like Planner, marking things done, saved addresses, and templates, sits in its own local database on the device. It's set up to sync that through iCloud too, but that part is switched off for now since it needs a paid Apple developer account.
 
 Widgets and Siri both read from that same data, so however you check your schedule, it's coming from one place.
 
@@ -38,6 +38,14 @@ open CalendarApp.xcodeproj
 ```
 
 Needs [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`) and Xcode. Pick the CalendarApp scheme, let it have calendar access, and run it. Gmail import stays off until you drop your own Google API key into `CalendarApp/Gmail/GoogleOAuthConfig.swift`.
+
+## Tests
+
+There are unit tests for the date math behind the Month and Week grids (week start days, 42 day month layouts, month lengths) and for how dates get pulled out of email text. Run them with Cmd+U in Xcode, or:
+
+```bash
+xcodebuild test -project CalendarApp.xcodeproj -scheme CalendarApp -destination 'platform=iOS Simulator,name=iPhone 17'
+```
 
 ## Status
 

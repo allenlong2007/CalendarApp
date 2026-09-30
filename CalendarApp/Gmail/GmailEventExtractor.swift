@@ -33,7 +33,7 @@ enum GmailEventExtractor {
         return candidates
     }
 
-    private static func detectDate(in text: String, fallback: Date?) -> Date? {
+    static func detectDate(in text: String, fallback: Date?) -> Date? {
         guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue) else {
             return fallback
         }
