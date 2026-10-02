@@ -1,5 +1,7 @@
 # CalendarApp
 
+[![Tests](https://github.com/allenlong2007/CalendarApp/actions/workflows/tests.yml/badge.svg)](https://github.com/allenlong2007/CalendarApp/actions/workflows/tests.yml)
+
 My own calendar app, for iPhone and Mac. It used to be a website, but I rebuilt it natively so it could do widgets, lock screen info, and Siri.
 
 <p align="center">
