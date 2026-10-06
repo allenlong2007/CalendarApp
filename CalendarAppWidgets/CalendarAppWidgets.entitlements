@@ -6,5 +6,13 @@
 	<array>
 		<string>group.com.footsoregnu3115.calendarapp</string>
 	</array>
+	<!--
+	Same Mac Catalyst quirk found on the main app target: EventKit's TCC
+	registration under Catalyst needs this declared explicitly per-bundle,
+	even for an embedded extension checking an already-granted status
+	rather than requesting it itself.
+	-->
+	<key>com.apple.security.personal-information.calendars</key>
+	<true/>
 </dict>
 </plist>

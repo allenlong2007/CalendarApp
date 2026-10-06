@@ -36,6 +36,15 @@ enum CalendarCategoryManager {
         return try createCalendar(title: title, color: color, in: store)
     }
 
+    /// Renaming/recoloring an existing calendar -- both EKCalendar.title and
+    /// .cgColor are mutable in place, unlike events there's no master/
+    /// occurrence split to worry about.
+    static func update(_ calendar: EKCalendar, title: String, color: PlatformColor, in store: EKEventStore) throws {
+        calendar.title = title
+        calendar.cgColor = color.cgColor
+        try store.saveCalendar(calendar, commit: true)
+    }
+
     static func delete(_ calendar: EKCalendar, in store: EKEventStore) throws {
         try store.removeCalendar(calendar, commit: true)
     }

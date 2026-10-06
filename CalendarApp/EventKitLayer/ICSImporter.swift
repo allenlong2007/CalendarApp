@@ -1,3 +1,4 @@
+import CoreLocation
 import EventKit
 import Foundation
 
@@ -82,10 +83,32 @@ enum ICSImporter {
     /// exceptions rather than being silently skipped. Skips events that
     /// already exist (same title, same start time) so re-importing the same
     /// file doesn't duplicate everything.
+    ///
+    /// `resolvedLocations` (keyed by the exact `ICSEvent.location` text) is
+    /// applied to each master at creation time, in the same save as the
+    /// alarm. This matters: EventKit only lets you touch one specific
+    /// occurrence of a recurring event via a `.thisEvent`-span save, which
+    /// detaches it into a standalone exception -- doing that once per
+    /// *expanded occurrence* (as an earlier version of this import's
+    /// geocoding step did) silently shreds the whole recurring series into
+    /// dozens of independent events. Setting shared fields once on the
+    /// freshly-created master, before any occurrence has ever been fetched
+    /// or saved separately, avoids that entirely.
     @MainActor
-    static func apply(_ parsed: ParsedICS, to calendar: EKCalendar, eventStore: EventStoreManager) -> (imported: Int, skipped: Int) {
+    @discardableResult
+    static func apply(
+        _ parsed: ParsedICS,
+        to calendar: EKCalendar,
+        eventStore: EventStoreManager,
+        resolvedLocations: [String: (address: String, coordinate: CLLocationCoordinate2D)] = [:],
+        /// Keyed by event title -- wins over resolvedLocations when both
+        /// apply, for classes whose room changed from what the source .ics
+        /// says (e.g. a room reassignment UCSD hasn't reflected there yet).
+        titleLocationOverrides: [String: (locationName: String, address: String, coordinate: CLLocationCoordinate2D)] = [:]
+    ) -> (imported: Int, skipped: Int, createdEvents: [EKEvent]) {
         var imported = 0
         var skipped = 0
+        var createdEvents: [EKEvent] = []
 
         for icsEvent in parsed.events {
             if occurrence(matching: icsEvent.summary, near: icsEvent.startDate, in: calendar, eventStore: eventStore) != nil {
@@ -106,7 +129,25 @@ enum ICSImporter {
                 skipped += 1
                 continue
             }
-            _ = created
+            // No EKAlarm here on purpose -- reminders are this app's own
+            // local notifications (see ReminderScheduler/EventReminderAccess),
+            // not EventKit alarms, which fire as system Calendar
+            // notifications shared with Apple's own Calendar app. A live
+            // caller of apply() should set an EventReminderPreference for
+            // `created` afterward if it wants a default reminder.
+            if let override = titleLocationOverrides[icsEvent.summary] {
+                let structured = EKStructuredLocation(title: override.locationName)
+                structured.geoLocation = CLLocation(latitude: override.coordinate.latitude, longitude: override.coordinate.longitude)
+                created.structuredLocation = structured
+                created.location = "\(override.locationName), \(override.address)"
+            } else if let location = icsEvent.location, let resolved = resolvedLocations[location] {
+                let structured = EKStructuredLocation(title: location)
+                structured.geoLocation = CLLocation(latitude: resolved.coordinate.latitude, longitude: resolved.coordinate.longitude)
+                created.structuredLocation = structured
+                created.location = "\(location), \(resolved.address)"
+            }
+            try? eventStore.update(created)
+            createdEvents.append(created)
 
             for exceptionDate in icsEvent.exceptionDates {
                 if let toRemove = occurrence(matching: icsEvent.summary, near: exceptionDate, in: calendar, eventStore: eventStore) {
@@ -117,7 +158,7 @@ enum ICSImporter {
             imported += 1
         }
 
-        return (imported, skipped)
+        return (imported, skipped, createdEvents)
     }
 
     @MainActor

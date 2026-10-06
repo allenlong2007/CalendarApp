@@ -11,6 +11,7 @@ struct WeekView: View {
     let onCreateEvent: (Date) -> Void
 
     @Environment(EventStoreManager.self) private var eventStore
+    @Environment(\.modelContext) private var modelContext
     @Query private var completionRows: [EventCompletionStatus]
 
     private let hourHeight: CGFloat = 52
@@ -29,14 +30,14 @@ struct WeekView: View {
         guard let first = days.first, let last = days.last else { return [:] }
         let events = eventStore.events(from: DateMath.startOfDay(first), to: DateMath.endOfDay(last), in: visibleCalendars)
             .filter { !$0.isAllDay }
-        return Dictionary(grouping: events) { DateMath.startOfDay($0.startDate) }
+        return EventDayGrouping.group(events, within: DateMath.startOfDay(first)...DateMath.startOfDay(last))
     }
 
     private var allDayEventsByDay: [Date: [EKEvent]] {
         guard let first = days.first, let last = days.last else { return [:] }
         let events = eventStore.events(from: DateMath.startOfDay(first), to: DateMath.endOfDay(last), in: visibleCalendars)
             .filter(\.isAllDay)
-        return Dictionary(grouping: events) { DateMath.startOfDay($0.startDate) }
+        return EventDayGrouping.group(events, within: DateMath.startOfDay(first)...DateMath.startOfDay(last))
     }
 
     var body: some View {
@@ -128,19 +129,30 @@ struct WeekView: View {
                             }
                         }
                         ForEach(map[DateMath.startOfDay(day)] ?? [], id: \.eventIdentifier) { event in
-                            let frame = layout(for: event, width: geo.size.width)
+                            let frame = layout(for: event, on: day, width: geo.size.width)
                             RoundedRectangle(cornerRadius: 6)
                                 .fill(colorFor(event))
                                 .overlay(alignment: .topLeading) {
-                                    Text(event.title ?? "")
-                                        .font(.caption2.weight(.semibold))
-                                        .foregroundStyle(.white)
-                                        .padding(3)
-                                        .lineLimit(2)
+                                    HStack(alignment: .top, spacing: 2) {
+                                        Text(event.title ?? "")
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(.white)
+                                            .lineLimit(2)
+                                            .strikethrough(EventCompletionAccess.isCompleted(event, in: completionRows))
+                                        if frame.height > 30 {
+                                            Spacer(minLength: 0)
+                                            completeButton(for: event)
+                                        }
+                                    }
+                                    .padding(3)
                                 }
                                 .frame(width: frame.width, height: frame.height)
                                 .offset(x: frame.x, y: frame.y)
                                 .onTapGesture { onSelectEvent(event) }
+                        }
+
+                        if DateMath.isSameDay(day, .now) {
+                            nowLine(width: geo.size.width)
                         }
                     }
                     .contentShape(Rectangle())
@@ -161,6 +173,40 @@ struct WeekView: View {
         .padding(.top, 6)
     }
 
+    /// Apple Calendar's own "now" indicator, shown only in today's column.
+    private func nowLine(width: CGFloat) -> some View {
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            let minutesSinceMidnight = context.date.timeIntervalSince(DateMath.startOfDay(context.date)) / 60
+            let y = CGFloat(minutesSinceMidnight / 60) * hourHeight
+            HStack(spacing: 0) {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 7, height: 7)
+                    .offset(x: -3.5)
+                Rectangle()
+                    .fill(Color.red)
+                    .frame(height: 1.5)
+            }
+            .frame(width: width, alignment: .leading)
+            .offset(y: y - 3.5)
+            .allowsHitTesting(false)
+        }
+    }
+
+    /// Same one-tap complete toggle as DayView -- see its own doc comment.
+    /// Only shown on blocks tall enough to fit it without crowding the title.
+    private func completeButton(for event: EKEvent) -> some View {
+        let completed = EventCompletionAccess.isCompleted(event, in: completionRows)
+        return Button {
+            EventCompletionAccess.toggle(event, in: completionRows, context: modelContext)
+        } label: {
+            Image(systemName: completed ? "checkmark.circle.fill" : "circle")
+                .font(.caption2)
+                .foregroundStyle(completed ? AppTheme.completed : Color.secondary)
+        }
+        .buttonStyle(.plain)
+    }
+
     private func colorFor(_ event: EKEvent) -> Color {
         let completed = EventCompletionAccess.isCompleted(event, in: completionRows)
         let status = EventStatusEvaluator.status(for: event, completed: completed)
@@ -173,10 +219,8 @@ struct WeekView: View {
         return "\(h12) \(period)"
     }
 
-    private func layout(for event: EKEvent, width: CGFloat) -> (x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat) {
-        let dayStart = DateMath.startOfDay(event.startDate)
-        let startMinutes = event.startDate.timeIntervalSince(dayStart) / 60
-        let endMinutes = max(startMinutes + 20, event.endDate.timeIntervalSince(dayStart) / 60)
+    private func layout(for event: EKEvent, on day: Date, width: CGFloat) -> (x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat) {
+        let (startMinutes, endMinutes) = EventDayGrouping.minuteRange(of: event, on: day)
         let top = CGFloat(startMinutes / 60) * hourHeight
         let height = CGFloat((endMinutes - startMinutes) / 60) * hourHeight
         return (x: 2, y: top, width: max(0, width - 4), height: height)

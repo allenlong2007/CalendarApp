@@ -17,6 +17,10 @@ enum CalendarAccessStatus {
 @Observable
 @MainActor
 final class EventStoreManager {
+    /// The hidden iCloud calendar SyncTransport uses to carry app data
+    /// between devices. It's a plumbing detail, never a user calendar.
+    static let syncCalendarTitle = "CalendarApp Sync"
+
     let store = EKEventStore()
 
     private(set) var accessStatus: CalendarAccessStatus = .notDetermined
@@ -80,7 +84,7 @@ final class EventStoreManager {
 
     var calendars: [EKCalendar] {
         _ = externalChangeToken // participate in Observation tracking -- see events(from:to:in:)
-        return store.calendars(for: .event)
+        return store.calendars(for: .event).filter { $0.title != Self.syncCalendarTitle }
     }
 
     // MARK: - Events
@@ -94,7 +98,9 @@ final class EventStoreManager {
     func events(from startDate: Date, to endDate: Date, in calendars: [EKCalendar]? = nil) -> [EKEvent] {
         _ = externalChangeToken
         let predicate = store.predicateForEvents(withStart: startDate, end: endDate, calendars: calendars)
-        return store.events(matching: predicate).sorted { $0.startDate < $1.startDate }
+        return store.events(matching: predicate)
+            .filter { $0.calendar?.title != Self.syncCalendarTitle }
+            .sorted { $0.startDate < $1.startDate }
     }
 
     @discardableResult
@@ -161,6 +167,16 @@ final class EventStoreManager {
     /// directly (calendar create/rename/delete) rather than through this
     /// class's own methods -- lets them still trigger an immediate refresh.
     func notifyStoreMutated() {
+        bumpChangeToken()
+    }
+
+    /// Asks EventKit to pull any pending iCloud changes now, then re-renders.
+    /// Called whenever the app returns to the foreground so edits made on
+    /// another device show up immediately instead of whenever EventKit next
+    /// decides to sync on its own.
+    func refreshFromSources() {
+        guard accessStatus == .fullAccess else { return }
+        store.refreshSourcesIfNecessary()
         bumpChangeToken()
     }
 

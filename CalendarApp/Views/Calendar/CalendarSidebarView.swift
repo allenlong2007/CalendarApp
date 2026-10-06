@@ -41,7 +41,8 @@ struct CalendarSidebarView: View {
                 ScrollView {
                     EventQuickLookView(
                         event: previewEvent,
-                        completed: EventCompletionAccess.isCompleted(previewEvent, in: completionRows)
+                        completed: EventCompletionAccess.isCompleted(previewEvent, in: completionRows),
+                        onToggleComplete: { onToggleComplete(previewEvent) }
                     )
                     Button {
                         onEditEvent(previewEvent)

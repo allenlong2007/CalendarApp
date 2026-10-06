@@ -14,6 +14,7 @@ struct EventTemplateEditorView: View {
     @State private var title = ""
     @State private var isAllDay = false
     @State private var durationMinutes = 60
+    @State private var preferredStartTime = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: .now) ?? .now
     @State private var categoryIdentifier: String?
     @State private var notes = ""
     @State private var reminderMinutesBefore: Int?
@@ -32,6 +33,7 @@ struct EventTemplateEditorView: View {
                 Section {
                     Toggle("All-day", isOn: $isAllDay.animation())
                     if !isAllDay {
+                        DatePicker("Start time", selection: $preferredStartTime, displayedComponents: .hourAndMinute)
                         Picker("Duration", selection: $durationMinutes) {
                             ForEach(durationOptions, id: \.self) { minutes in
                                 Text(durationLabel(minutes)).tag(minutes)
@@ -41,31 +43,28 @@ struct EventTemplateEditorView: View {
                 }
 
                 Section("Category") {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 10) {
-                            Button {
-                                categoryIdentifier = nil
-                            } label: {
-                                Text("None")
-                                    .font(.subheadline.weight(categoryIdentifier == nil ? .semibold : .regular))
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 8)
-                                    .background(Capsule().fill(Color.secondary.opacity(categoryIdentifier == nil ? 0.25 : 0.12)))
-                                    .foregroundStyle(.primary)
-                            }
-                            .buttonStyle(.plain)
-                            ForEach(writableCalendars, id: \.calendarIdentifier) { calendar in
-                                CategoryChip(
-                                    calendar: calendar,
-                                    isSelected: categoryIdentifier == calendar.calendarIdentifier
-                                ) {
-                                    categoryIdentifier = calendar.calendarIdentifier
-                                }
+                    FlowLayout(spacing: 8) {
+                        Button {
+                            categoryIdentifier = nil
+                        } label: {
+                            Text("None")
+                                .font(.subheadline.weight(categoryIdentifier == nil ? .semibold : .regular))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Capsule().fill(Color.secondary.opacity(categoryIdentifier == nil ? 0.25 : 0.12)))
+                                .foregroundStyle(.primary)
+                        }
+                        .buttonStyle(.plain)
+                        ForEach(writableCalendars, id: \.calendarIdentifier) { calendar in
+                            CategoryChip(
+                                calendar: calendar,
+                                isSelected: categoryIdentifier == calendar.calendarIdentifier
+                            ) {
+                                categoryIdentifier = calendar.calendarIdentifier
                             }
                         }
-                        .padding(.vertical, 2)
                     }
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 0))
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 }
 
                 Section("Notes") {
@@ -100,6 +99,9 @@ struct EventTemplateEditorView: View {
         title = existing.title
         isAllDay = existing.isAllDay
         durationMinutes = existing.durationMinutes
+        if let minutes = existing.preferredStartMinutes {
+            preferredStartTime = Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: .now) ?? preferredStartTime
+        }
         categoryIdentifier = existing.categoryIdentifier
         notes = existing.notes ?? ""
         reminderMinutesBefore = existing.reminderMinutesBefore
@@ -111,6 +113,12 @@ struct EventTemplateEditorView: View {
         template.title = title.trimmingCharacters(in: .whitespaces)
         template.isAllDay = isAllDay
         template.durationMinutes = durationMinutes
+        if isAllDay {
+            template.preferredStartMinutes = nil
+        } else {
+            let components = Calendar.current.dateComponents([.hour, .minute], from: preferredStartTime)
+            template.preferredStartMinutes = (components.hour ?? 9) * 60 + (components.minute ?? 0)
+        }
         template.categoryIdentifier = categoryIdentifier
         template.notes = notes.isEmpty ? nil : notes
         template.reminderMinutesBefore = reminderMinutesBefore

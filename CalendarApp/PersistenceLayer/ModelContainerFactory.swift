@@ -13,6 +13,8 @@ enum ModelContainerFactory {
         EventTemplate.self,
         AppPreferences.self,
         CalendarIconMap.self,
+        EventReminderPreference.self,
+        EventLocationOverride.self,
     ])
 
     static func make() -> ModelContainer {

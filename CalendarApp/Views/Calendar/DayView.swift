@@ -15,7 +15,9 @@ struct DayView: View {
     var onPreviewEvent: ((EKEvent) -> Void)?
 
     @Environment(EventStoreManager.self) private var eventStore
+    @Environment(\.modelContext) private var modelContext
     @Query private var completionRows: [EventCompletionStatus]
+    @Query private var locationOverrides: [EventLocationOverride]
 
     private let hourHeight: CGFloat = 64
     private let gutterWidth: CGFloat = 52
@@ -54,13 +56,18 @@ struct DayView: View {
                         .frame(width: gutterWidth, alignment: .leading)
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(allDayEvents, id: \.eventIdentifier) { event in
-                            Text(event.title ?? "")
-                                .font(.subheadline.weight(.semibold))
-                                .padding(.horizontal, 8).padding(.vertical, 4)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(colorFor(event).opacity(0.3), in: RoundedRectangle(cornerRadius: 4))
-                                .onTapGesture(count: 2) { onSelectEvent(event) }
-                                .onTapGesture(count: 1) { onPreviewEvent?(event) ?? onSelectEvent(event) }
+                            HStack(spacing: 6) {
+                                completeButton(for: event)
+                                Text(event.title ?? "")
+                                    .font(.subheadline.weight(.semibold))
+                                    .strikethrough(EventCompletionAccess.isCompleted(event, in: completionRows))
+                            }
+                            .padding(.horizontal, 8).padding(.vertical, 4)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(colorFor(event).opacity(0.3), in: RoundedRectangle(cornerRadius: 4))
+                            .contentShape(Rectangle())
+                            .onTapGesture(count: 2) { onSelectEvent(event) }
+                            .onTapGesture(count: 1) { onPreviewEvent?(event) ?? onSelectEvent(event) }
                         }
                     }
                 }
@@ -92,18 +99,23 @@ struct DayView: View {
                                 RoundedRectangle(cornerRadius: 6)
                                     .fill(colorFor(event))
                                     .overlay(alignment: .topLeading) {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(event.title ?? "")
-                                                .font(.subheadline.weight(.semibold))
-                                                .lineLimit(1)
-                                            if let location = event.location, !location.isEmpty {
-                                                Label(location, systemImage: "mappin.circle.fill")
-                                                    .font(.caption2)
+                                        HStack(alignment: .top, spacing: 4) {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(event.title ?? "")
+                                                    .font(.subheadline.weight(.semibold))
                                                     .lineLimit(1)
-                                            } else {
-                                                Text(timeRangeText(for: event))
-                                                    .font(.caption2)
+                                                    .strikethrough(EventCompletionAccess.isCompleted(event, in: completionRows))
+                                                if let resolved = EventLocationAccess.displayLocation(for: event, in: locationOverrides) {
+                                                    Label(resolved.text, systemImage: "mappin.circle.fill")
+                                                        .font(.caption2)
+                                                        .lineLimit(1)
+                                                } else {
+                                                    Text(timeRangeText(for: event))
+                                                        .font(.caption2)
+                                                }
                                             }
+                                            Spacer(minLength: 0)
+                                            completeButton(for: event)
                                         }
                                         .foregroundStyle(.white)
                                         .padding(8)
@@ -113,6 +125,10 @@ struct DayView: View {
                                     .contentShape(Rectangle())
                                     .onTapGesture(count: 2) { onSelectEvent(event) }
                                     .onTapGesture(count: 1) { onPreviewEvent?(event) ?? onSelectEvent(event) }
+                            }
+
+                            if DateMath.isSameDay(date, .now) {
+                                nowLine(width: geo.size.width)
                             }
                         }
                         .contentShape(Rectangle())
@@ -134,6 +150,44 @@ struct DayView: View {
         }
     }
 
+    /// Apple Calendar's own "now" indicator -- a red line with a leading dot
+    /// at the current time, only shown when this Day view is actually
+    /// showing today. TimelineView keeps it creeping down live without a
+    /// manual Timer.
+    private func nowLine(width: CGFloat) -> some View {
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            let minutesSinceMidnight = context.date.timeIntervalSince(DateMath.startOfDay(context.date)) / 60
+            let y = CGFloat(minutesSinceMidnight / 60) * hourHeight
+            HStack(spacing: 0) {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 8, height: 8)
+                    .offset(x: -4)
+                Rectangle()
+                    .fill(Color.red)
+                    .frame(height: 1.5)
+            }
+            .frame(width: width, alignment: .leading)
+            .offset(y: y - 4)
+            .allowsHitTesting(false)
+        }
+    }
+
+    /// A one-tap complete toggle directly on the event block -- previously
+    /// the only way to mark something complete from Day view was to open
+    /// the full editor and find the "Mark Complete" toggle buried in its form.
+    private func completeButton(for event: EKEvent) -> some View {
+        let completed = EventCompletionAccess.isCompleted(event, in: completionRows)
+        return Button {
+            EventCompletionAccess.toggle(event, in: completionRows, context: modelContext)
+        } label: {
+            Image(systemName: completed ? "checkmark.circle.fill" : "circle")
+                .font(.callout)
+                .foregroundStyle(completed ? AppTheme.completed : Color.secondary)
+        }
+        .buttonStyle(.plain)
+    }
+
     private func colorFor(_ event: EKEvent) -> Color {
         let completed = EventCompletionAccess.isCompleted(event, in: completionRows)
         let status = EventStatusEvaluator.status(for: event, completed: completed)
@@ -151,9 +205,7 @@ struct DayView: View {
     }
 
     private func layout(for event: EKEvent, width: CGFloat) -> (x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat) {
-        let dayStart = DateMath.startOfDay(event.startDate)
-        let startMinutes = event.startDate.timeIntervalSince(dayStart) / 60
-        let endMinutes = max(startMinutes + 20, event.endDate.timeIntervalSince(dayStart) / 60)
+        let (startMinutes, endMinutes) = EventDayGrouping.minuteRange(of: event, on: date)
         let top = CGFloat(startMinutes / 60) * hourHeight
         let height = CGFloat((endMinutes - startMinutes) / 60) * hourHeight
         return (x: 4, y: top, width: max(0, width - 8), height: height)

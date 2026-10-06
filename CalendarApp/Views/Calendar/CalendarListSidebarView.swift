@@ -7,11 +7,12 @@ import SwiftUI
 /// this app; EventKit has no cross-app visibility flag to persist to).
 struct CalendarListSidebarView: View {
     @Environment(EventStoreManager.self) private var eventStore
+    @Environment(SyncCoordinator.self) private var sync
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Query private var preferencesRows: [AppPreferences]
 
-    @State private var showingNewCalendar = false
+    @State private var editorContext: CalendarEditorContext?
     @State private var showingImport = false
     @State private var showingGmailImport = false
 
@@ -21,22 +22,57 @@ struct CalendarListSidebarView: View {
         NavigationStack {
             List {
                 ForEach(eventStore.calendars, id: \.calendarIdentifier) { calendar in
-                    Button {
-                        toggle(calendar)
-                    } label: {
-                        HStack {
-                            Circle()
-                                .fill(Color(cgColor: calendar.cgColor))
-                                .frame(width: 14, height: 14)
-                            Text(calendar.title)
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            if isVisible(calendar) {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(AppTheme.ultramarine)
+                    HStack {
+                        // Visibility toggle and edit are sibling Buttons, not a
+                        // row-wide tap gesture with a Button inside it -- there,
+                        // tapping the pencil could also fire the row's toggle and
+                        // silently hide the calendar being edited.
+                        Button {
+                            toggle(calendar)
+                        } label: {
+                            HStack {
+                                Circle()
+                                    .fill(Color(cgColor: calendar.cgColor))
+                                    .frame(width: 14, height: 14)
+                                Text(calendar.title)
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                if isVisible(calendar) {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(AppTheme.ultramarine)
+                                }
                             }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        // A dedicated button rather than swipeActions -- swipe
+                        // gestures are unreliable on Mac Catalyst's
+                        // trackpad/mouse input (same reasoning as the
+                        // template list's edit/delete buttons).
+                        if calendar.allowsContentModifications {
+                            Button {
+                                editorContext = .edit(calendar)
+                            } label: {
+                                Image(systemName: "pencil.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
+                }
+
+                Section {
+                    HStack {
+                        Label(syncStatusText, systemImage: syncStatusIcon)
+                            .foregroundStyle(syncStatusColor)
+                        Spacer()
+                        Button("Sync Now") { Task { await sync.syncNow() } }
+                            .disabled(sync.status == .syncing)
+                    }
+                } header: {
+                    Text("Device Sync")
+                } footer: {
+                    Text("Keeps checkmarks, templates, reminders, locations and hidden calendars in step between your devices, through a hidden \"CalendarApp Sync\" calendar in iCloud. You can hide that calendar in Apple's Calendar app, but don't delete it.")
                 }
 
                 Section {
@@ -60,14 +96,14 @@ struct CalendarListSidebarView: View {
                 }
                 ToolbarItem(placement: .cancellationAction) {
                     Button {
-                        showingNewCalendar = true
+                        editorContext = .new
                     } label: {
                         Image(systemName: "plus")
                     }
                 }
             }
-            .sheet(isPresented: $showingNewCalendar) {
-                NewCalendarView()
+            .sheet(item: $editorContext) { context in
+                CalendarEditorView(context: context)
             }
             .sheet(isPresented: $showingImport) {
                 ImportFromWebAppView()
@@ -76,6 +112,28 @@ struct CalendarListSidebarView: View {
                 GmailImportView()
             }
         }
+    }
+
+    private var syncStatusText: String {
+        switch sync.status {
+        case .idle: return "Waiting to sync"
+        case .syncing: return "Syncing..."
+        case .synced(let date): return "Synced \(date.formatted(.relative(presentation: .named)))"
+        case .failed(let message): return message
+        }
+    }
+
+    private var syncStatusIcon: String {
+        switch sync.status {
+        case .failed: return "exclamationmark.icloud"
+        case .synced: return "checkmark.icloud"
+        default: return "icloud"
+        }
+    }
+
+    private var syncStatusColor: Color {
+        if case .failed = sync.status { return .red }
+        return .secondary
     }
 
     private func isVisible(_ calendar: EKCalendar) -> Bool {
@@ -93,18 +151,52 @@ struct CalendarListSidebarView: View {
     }
 }
 
-/// Create a new "category" (EKCalendar).
-struct NewCalendarView: View {
+enum CalendarEditorContext: Identifiable {
+    case new
+    case edit(EKCalendar)
+
+    var id: String {
+        switch self {
+        case .new: return "new"
+        case .edit(let calendar): return "edit-\(calendar.calendarIdentifier)"
+        }
+    }
+}
+
+/// Create a new "category" (EKCalendar), or rename/recolor/delete an
+/// existing one -- EKCalendar.title and .cgColor are both mutable in place,
+/// no master/occurrence split to worry about like events have.
+struct CalendarEditorView: View {
+    let context: CalendarEditorContext
+
     @Environment(EventStoreManager.self) private var eventStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var title = ""
     @State private var selectedColor: Color = AppTheme.calendarColors[0]
     @State private var errorMessage: String?
+    @State private var showingDeleteConfirmation = false
+
+    private var isEditing: Bool {
+        if case .edit = context { return true }
+        return false
+    }
+
+    /// A subscribed calendar (e.g. Holidays) can't be renamed, recolored, or deleted here.
+    private var isReadOnly: Bool {
+        if case .edit(let calendar) = context { return !calendar.allowsContentModifications }
+        return false
+    }
 
     var body: some View {
         NavigationStack {
             Form {
+                if isReadOnly {
+                    Section {
+                        Label("This is a subscribed calendar, so it can't be edited here.", systemImage: "lock.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 Section("Name") {
                     TextField("Calendar name", text: $title)
                 }
@@ -115,7 +207,7 @@ struct NewCalendarView: View {
                                 .fill(color)
                                 .frame(width: 32, height: 32)
                                 .overlay {
-                                    if color == selectedColor {
+                                    if isSelected(color) {
                                         Circle().stroke(Color.white, lineWidth: 2)
                                     }
                                 }
@@ -127,28 +219,85 @@ struct NewCalendarView: View {
                 if let errorMessage {
                     Text(errorMessage).foregroundStyle(.red)
                 }
+                if isEditing && !isReadOnly {
+                    Section {
+                        Button("Delete Calendar", role: .destructive) {
+                            showingDeleteConfirmation = true
+                        }
+                    }
+                }
             }
-            .navigationTitle("New Calendar")
+            .disabled(isReadOnly)
+            .navigationTitle(isEditing ? "Edit Calendar" : "New Calendar")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") { create() }
-                        .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
+                    if !isReadOnly {
+                        Button(isEditing ? "Save" : "Add") { save() }
+                            .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
                 }
             }
+            .confirmationDialog(
+                "Delete this calendar? All of its events will be deleted too.",
+                isPresented: $showingDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) { delete() }
+                Button("Cancel", role: .cancel) {}
+            }
+            .onAppear(perform: populateIfNeeded)
         }
     }
 
-    private func create() {
+    private func populateIfNeeded() {
+        guard case .edit(let calendar) = context else { return }
+        title = calendar.title
+        selectedColor = Color(cgColor: calendar.cgColor)
+    }
+
+    /// Exact Color equality can miss after a round-trip through
+    /// EKCalendar.cgColor (color-space conversion can nudge components by a
+    /// hair), so the highlight ring matches within a small tolerance instead.
+    private func isSelected(_ color: Color) -> Bool {
+        guard let a = PlatformColor(color).cgColor.components,
+              let b = PlatformColor(selectedColor).cgColor.components,
+              a.count >= 3, b.count >= 3 else { return false }
+        return abs(a[0] - b[0]) < 0.02 && abs(a[1] - b[1]) < 0.02 && abs(a[2] - b[2]) < 0.02
+    }
+
+    private func save() {
+        let trimmed = title.trimmingCharacters(in: .whitespaces)
         do {
-            try CalendarCategoryManager.createCalendar(
-                title: title.trimmingCharacters(in: .whitespaces),
-                color: PlatformColor(selectedColor),
-                in: eventStore.store
-            )
+            switch context {
+            case .new:
+                try CalendarCategoryManager.createCalendar(
+                    title: trimmed,
+                    color: PlatformColor(selectedColor),
+                    in: eventStore.store
+                )
+            case .edit(let calendar):
+                try CalendarCategoryManager.update(
+                    calendar,
+                    title: trimmed,
+                    color: PlatformColor(selectedColor),
+                    in: eventStore.store
+                )
+            }
+            eventStore.notifyStoreMutated()
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func delete() {
+        guard case .edit(let calendar) = context else { return }
+        do {
+            try CalendarCategoryManager.delete(calendar, in: eventStore.store)
             eventStore.notifyStoreMutated()
             dismiss()
         } catch {

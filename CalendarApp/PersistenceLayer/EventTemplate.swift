@@ -8,6 +8,11 @@ final class EventTemplate: Identifiable {
     var title: String = ""
     var isAllDay: Bool = false
     var durationMinutes: Int = 60
+    /// Minutes since midnight -- the template's own remembered time of day
+    /// (e.g. 540 = 9:00 AM), applied to whatever date it's quick-added to.
+    /// Optional only for templates saved before this field existed; new
+    /// ones always get one (see EventTemplateEditorView/EventEditorView).
+    var preferredStartMinutes: Int?
     var categoryIdentifier: String?
     var savedAddressID: UUID?
     var notes: String?
@@ -17,6 +22,7 @@ final class EventTemplate: Identifiable {
         title: String,
         isAllDay: Bool = false,
         durationMinutes: Int = 60,
+        preferredStartMinutes: Int? = nil,
         categoryIdentifier: String? = nil,
         savedAddressID: UUID? = nil,
         notes: String? = nil,
@@ -25,6 +31,7 @@ final class EventTemplate: Identifiable {
         self.title = title
         self.isAllDay = isAllDay
         self.durationMinutes = durationMinutes
+        self.preferredStartMinutes = preferredStartMinutes
         self.categoryIdentifier = categoryIdentifier
         self.savedAddressID = savedAddressID
         self.notes = notes

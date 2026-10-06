@@ -60,6 +60,9 @@ struct EventEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query private var completionRows: [EventCompletionStatus]
+    @Query private var reminderRows: [EventReminderPreference]
+    @Query private var locationOverrides: [EventLocationOverride]
+    @Query private var preferencesRows: [AppPreferences]
 
     @State private var title = ""
     @State private var isAllDay = false
@@ -73,8 +76,20 @@ struct EventEditorView: View {
     @State private var reminderMinutes: Int?
     @State private var repeatOption: RepeatOption = .never
     @State private var repeatOccurrences: Int = 8
+    /// What the Repeat controls showed when the editor opened. The controls
+    /// can only express "every N for X occurrences", so an existing series
+    /// (a class repeating weekly until a date, an open-ended weekly reminder)
+    /// would be silently rewritten as "8 occurrences" by any save -- even one
+    /// that only changed the title. Recurrence is only written back when the
+    /// user actually changed these controls.
+    @State private var originalRepeatOption: RepeatOption = .never
+    @State private var originalRepeatOccurrences: Int = 8
     @State private var errorMessage: String?
     @State private var showingDeleteConfirmation = false
+    @State private var didSaveTemplate = false
+    /// Whether the event being edited had a resolved location before this
+    /// edit -- see save() for why that matters to EventLocationOverride.
+    @State private var originalHadLocation = false
     @State private var showingLocationPicker = false
     @State private var showingDuplicateToDays = false
 
@@ -162,20 +177,17 @@ struct EventEditorView: View {
                 }
 
                 Section("Category") {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 10) {
-                            ForEach(writableCalendars, id: \.calendarIdentifier) { calendar in
-                                CategoryChip(
-                                    calendar: calendar,
-                                    isSelected: selectedCalendarIdentifier == calendar.calendarIdentifier
-                                ) {
-                                    selectedCalendarIdentifier = calendar.calendarIdentifier
-                                }
+                    FlowLayout(spacing: 8) {
+                        ForEach(writableCalendars, id: \.calendarIdentifier) { calendar in
+                            CategoryChip(
+                                calendar: calendar,
+                                isSelected: selectedCalendarIdentifier == calendar.calendarIdentifier
+                            ) {
+                                selectedCalendarIdentifier = calendar.calendarIdentifier
                             }
                         }
-                        .padding(.vertical, 2)
                     }
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 0))
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 }
 
                 Section("Location") {
@@ -222,9 +234,16 @@ struct EventEditorView: View {
                         Button {
                             saveAsTemplate()
                         } label: {
-                            Label("Save as Template", systemImage: "bolt.fill")
+                            Label(
+                                didSaveTemplate ? "Template Saved" : "Save as Template",
+                                systemImage: didSaveTemplate ? "checkmark.circle.fill" : "bolt.fill"
+                            )
+                            .symbolEffect(.bounce, value: didSaveTemplate)
                         }
-                        .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
+                        // Guards against the same double-invocation bug fixed in
+                        // QuickAddTemplatesView -- this button created several
+                        // duplicate templates from what looked like one tap.
+                        .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || didSaveTemplate)
                     }
                 }
 
@@ -293,13 +312,17 @@ struct EventEditorView: View {
         case .new(let defaultDate):
             title = ""
             isAllDay = false
-            startDate = defaultDate
-            endDate = defaultDate.addingTimeInterval(3600)
+            // Month/Agenda pass a bare day (midnight) -- defaulting to 12 AM
+            // makes a new event land in the dead of night, so a "morning"
+            // event looked like it hadn't been created. Use 9 AM instead.
+            let defaultStart = Self.sensibleDefaultStart(for: defaultDate)
+            startDate = defaultStart
+            endDate = defaultStart.addingTimeInterval(3600)
             location = ""
             locationLatitude = nil
             locationLongitude = nil
             notes = ""
-            reminderMinutes = nil
+            reminderMinutes = 15
             repeatOption = .never
             repeatOccurrences = 8
             selectedCalendarIdentifier = eventStore.store.defaultCalendarForNewEvents?.calendarIdentifier
@@ -309,21 +332,23 @@ struct EventEditorView: View {
             isAllDay = event.isAllDay
             startDate = event.startDate
             endDate = event.endDate
-            location = event.location ?? ""
-            if let geoLocation = event.structuredLocation?.geoLocation {
-                locationLatitude = geoLocation.coordinate.latitude
-                locationLongitude = geoLocation.coordinate.longitude
+            // EventKit's own .location reads back empty for most occurrences
+            // of a recurring event (a confirmed read-side limitation, not
+            // fixable by writing differently -- see EventLocationOverride),
+            // so fall back to this app's own mirror of it when that happens.
+            originalHadLocation = EventLocationAccess.displayLocation(for: event, in: locationOverrides) != nil
+            if let resolved = EventLocationAccess.displayLocation(for: event, in: locationOverrides) {
+                location = resolved.text
+                locationLatitude = resolved.coordinate?.latitude
+                locationLongitude = resolved.coordinate?.longitude
             } else {
+                location = ""
                 locationLatitude = nil
                 locationLongitude = nil
             }
             notes = event.notes ?? ""
             selectedCalendarIdentifier = event.calendar?.calendarIdentifier
-            if let alarm = event.alarms?.first {
-                reminderMinutes = Int(-alarm.relativeOffset / 60)
-            } else {
-                reminderMinutes = nil
-            }
+            reminderMinutes = EventReminderAccess.effectiveMinutes(for: event, in: reminderRows)
             if let rule = event.recurrenceRules?.first {
                 switch rule.frequency {
                 case .daily: repeatOption = .daily
@@ -337,11 +362,21 @@ struct EventEditorView: View {
                 repeatOption = .never
                 repeatOccurrences = 8
             }
+            originalRepeatOption = repeatOption
+            originalRepeatOccurrences = repeatOccurrences
         }
     }
 
+    private static func sensibleDefaultStart(for date: Date) -> Date {
+        guard date == DateMath.startOfDay(date) else { return date }
+        return Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: date) ?? date
+    }
+
     private func save() {
-        guard let calendar = selectedCalendar else { return }
+        guard let calendar = selectedCalendar else {
+            errorMessage = "Pick a category for this event first."
+            return
+        }
         do {
             let event: EKEvent
             if case .edit(let existing) = context {
@@ -369,20 +404,44 @@ struct EventEditorView: View {
                 event.structuredLocation = nil
             }
             event.notes = notes.isEmpty ? nil : notes
-            event.alarms = nil
-            if let reminderMinutes {
-                event.addAlarm(EKAlarm(relativeOffset: -Double(reminderMinutes * 60)))
-            }
-            if let frequency = repeatOption.frequency {
-                event.recurrenceRules = [EKRecurrenceRule(
-                    recurrenceWith: frequency,
-                    interval: 1,
-                    end: EKRecurrenceEnd(occurrenceCount: repeatOccurrences)
-                )]
-            } else {
-                event.recurrenceRules = nil
+            // No EKAlarm here on purpose -- reminders are this app's own
+            // local notifications now (see ReminderScheduler), not EventKit
+            // alarms, which fire as system Calendar notifications shared
+            // with Apple's own Calendar app.
+            if repeatOption != originalRepeatOption || repeatOccurrences != originalRepeatOccurrences {
+                if let frequency = repeatOption.frequency {
+                    event.recurrenceRules = [EKRecurrenceRule(
+                        recurrenceWith: frequency,
+                        interval: 1,
+                        end: EKRecurrenceEnd(occurrenceCount: repeatOccurrences)
+                    )]
+                } else {
+                    event.recurrenceRules = nil
+                }
             }
             try eventStore.update(event)
+            AppPreferencesAccess.reveal(calendar, rows: preferencesRows, in: modelContext)
+            EventReminderAccess.setReminder(reminderMinutes, for: event, in: reminderRows, context: modelContext)
+            // See EventLocationOverride -- EventKit won't reliably read this
+            // back for most occurrences of a recurring event, so this app
+            // keeps its own copy for display.
+            let coordinate = (locationLatitude != nil && locationLongitude != nil)
+                ? CLLocationCoordinate2D(latitude: locationLatitude!, longitude: locationLongitude!)
+                : nil
+            // Overrides are keyed by title, so only touch one when this save
+            // actually set a location or cleared one that existed -- an
+            // unrelated save of a same-titled event with no location (a new
+            // one-off "MATH-018 Lecture", say) must not wipe the whole
+            // series' location.
+            if !location.isEmpty || originalHadLocation {
+                EventLocationAccess.setLocation(
+                    location.isEmpty ? nil : location,
+                    coordinate: coordinate,
+                    title: event.title ?? "",
+                    rows: locationOverrides,
+                    context: modelContext
+                )
+            }
             dismiss()
         } catch {
             errorMessage = error.localizedDescription
@@ -390,11 +449,17 @@ struct EventEditorView: View {
     }
 
     private func saveAsTemplate() {
+        guard !didSaveTemplate else { return }
+        didSaveTemplate = true
+
         let durationMinutes = isAllDay ? 0 : max(5, Int(endDate.timeIntervalSince(startDate) / 60))
+        let startComponents = Calendar.current.dateComponents([.hour, .minute], from: startDate)
+        let preferredStartMinutes = isAllDay ? nil : (startComponents.hour ?? 0) * 60 + (startComponents.minute ?? 0)
         let template = EventTemplate(
             title: title.trimmingCharacters(in: .whitespaces),
             isAllDay: isAllDay,
             durationMinutes: durationMinutes,
+            preferredStartMinutes: preferredStartMinutes,
             categoryIdentifier: selectedCalendarIdentifier,
             notes: notes.isEmpty ? nil : notes,
             reminderMinutesBefore: reminderMinutes
@@ -405,28 +470,39 @@ struct EventEditorView: View {
         }
     }
 
-    private func duplicate(to dates: Set<DateComponents>) {
+    private func duplicate(to days: Set<Date>) {
         guard case .edit(let event) = context, let calendar = event.calendar else { return }
         let duration = event.endDate.timeIntervalSince(event.startDate)
         let timeComponents = Calendar.current.dateComponents([.hour, .minute], from: event.startDate)
         var created: [EKEvent] = []
-        for var components in dates {
-            components.hour = event.isAllDay ? 0 : timeComponents.hour
-            components.minute = event.isAllDay ? 0 : timeComponents.minute
-            guard let newStart = Calendar.current.date(from: components) else { continue }
+        var failureCount = 0
+        for day in days {
+            let newStart = event.isAllDay
+                ? day
+                : Calendar.current.date(bySettingHour: timeComponents.hour ?? 0, minute: timeComponents.minute ?? 0, second: 0, of: day) ?? day
             let newEnd = event.isAllDay ? DateMath.addingDays(1, to: newStart) : newStart.addingTimeInterval(duration)
-            if let newEvent = try? eventStore.createEvent(
-                title: event.title ?? "",
-                startDate: newStart,
-                endDate: newEnd,
-                isAllDay: event.isAllDay,
-                calendar: calendar,
-                location: event.location,
-                structuredLocation: event.structuredLocation,
-                notes: event.notes
-            ) {
+            do {
+                let newEvent = try eventStore.createEvent(
+                    title: event.title ?? "",
+                    startDate: newStart,
+                    endDate: newEnd,
+                    isAllDay: event.isAllDay,
+                    calendar: calendar,
+                    location: event.location,
+                    structuredLocation: event.structuredLocation,
+                    notes: event.notes
+                )
                 created.append(newEvent)
+            } catch {
+                failureCount += 1
             }
+        }
+
+        if created.isEmpty && failureCount > 0 {
+            errorMessage = "Couldn't duplicate to any of the selected days."
+            return
+        } else if failureCount > 0 {
+            errorMessage = "Duplicated to \(created.count) day(s); \(failureCount) failed."
         }
         guard !created.isEmpty else { return }
         let identifiers = created.compactMap(\.eventIdentifier)

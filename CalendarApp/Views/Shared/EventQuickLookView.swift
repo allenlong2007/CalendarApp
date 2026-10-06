@@ -1,4 +1,6 @@
+import CoreLocation
 import EventKit
+import SwiftData
 import SwiftUI
 
 /// A single-click "quick look" popover for an event -- mirrors Apple
@@ -7,6 +9,9 @@ import SwiftUI
 struct EventQuickLookView: View {
     let event: EKEvent
     let completed: Bool
+    var onToggleComplete: (() -> Void)?
+
+    @Query private var locationOverrides: [EventLocationOverride]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -33,13 +38,22 @@ struct EventQuickLookView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                Spacer()
+                if let onToggleComplete {
+                    Button(action: onToggleComplete) {
+                        Image(systemName: completed ? "checkmark.circle.fill" : "circle")
+                            .font(.title2)
+                            .foregroundStyle(completed ? AppTheme.completed : Color.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
 
-            if let location = event.location, !location.isEmpty {
+            if let resolved = EventLocationAccess.displayLocation(for: event, in: locationOverrides) {
                 Button {
-                    openInMaps(location)
+                    openInMaps(resolved)
                 } label: {
-                    Label(location, systemImage: "mappin.circle.fill")
+                    Label(resolved.text, systemImage: "mappin.circle.fill")
                         .font(.subheadline)
                 }
                 .buttonStyle(.plain)
@@ -72,11 +86,11 @@ struct EventQuickLookView: View {
         }
     }
 
-    private func openInMaps(_ location: String) {
-        if let geoLocation = event.structuredLocation?.geoLocation {
-            MapsLauncher.open(title: location, coordinate: geoLocation.coordinate)
+    private func openInMaps(_ resolved: (text: String, coordinate: CLLocationCoordinate2D?)) {
+        if let coordinate = resolved.coordinate {
+            MapsLauncher.open(title: resolved.text, coordinate: coordinate)
         } else {
-            MapsLauncher.search(query: location)
+            MapsLauncher.search(query: resolved.text)
         }
     }
 }

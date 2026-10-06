@@ -56,31 +56,28 @@ struct PlannerEventEditorView: View {
                 }
 
                 Section("Category") {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 10) {
-                            Button {
-                                categoryIdentifier = nil
-                            } label: {
-                                Text("None")
-                                    .font(.subheadline.weight(categoryIdentifier == nil ? .semibold : .regular))
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 8)
-                                    .background(Capsule().fill(Color.secondary.opacity(categoryIdentifier == nil ? 0.25 : 0.12)))
-                                    .foregroundStyle(.primary)
-                            }
-                            .buttonStyle(.plain)
-                            ForEach(writableCalendars, id: \.calendarIdentifier) { calendar in
-                                CategoryChip(
-                                    calendar: calendar,
-                                    isSelected: categoryIdentifier == calendar.calendarIdentifier
-                                ) {
-                                    categoryIdentifier = calendar.calendarIdentifier
-                                }
+                    FlowLayout(spacing: 8) {
+                        Button {
+                            categoryIdentifier = nil
+                        } label: {
+                            Text("None")
+                                .font(.subheadline.weight(categoryIdentifier == nil ? .semibold : .regular))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Capsule().fill(Color.secondary.opacity(categoryIdentifier == nil ? 0.25 : 0.12)))
+                                .foregroundStyle(.primary)
+                        }
+                        .buttonStyle(.plain)
+                        ForEach(writableCalendars, id: \.calendarIdentifier) { calendar in
+                            CategoryChip(
+                                calendar: calendar,
+                                isSelected: categoryIdentifier == calendar.calendarIdentifier
+                            ) {
+                                categoryIdentifier = calendar.calendarIdentifier
                             }
                         }
-                        .padding(.vertical, 2)
                     }
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 0))
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 }
 
                 Section("Notes") {

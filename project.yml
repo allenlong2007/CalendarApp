@@ -65,6 +65,10 @@ targets:
         buildPhase: sources
       - path: CalendarApp/Views/Shared/EventStatusColor.swift
         buildPhase: sources
+      - path: CalendarApp/Views/Shared/EventCompletionAccess.swift
+        buildPhase: sources
+      - path: CalendarApp/PersistenceLayer
+        buildPhase: sources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.footsoregnu3115.calendarapp.CalendarAppWidgets

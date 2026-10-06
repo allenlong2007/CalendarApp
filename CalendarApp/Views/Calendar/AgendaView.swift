@@ -24,7 +24,8 @@ struct AgendaView: View {
     }
 
     private var groups: [(day: Date, events: [EKEvent])] {
-        let grouped = Dictionary(grouping: upcoming) { DateMath.startOfDay($0.startDate) }
+        let start = DateMath.startOfDay(.now)
+        let grouped = EventDayGrouping.group(upcoming, within: start...DateMath.addingDays(180, to: start))
         return grouped.keys.sorted().map { ($0, grouped[$0]!.sorted { $0.startDate < $1.startDate }) }
     }
 

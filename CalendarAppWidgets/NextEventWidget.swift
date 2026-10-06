@@ -1,3 +1,4 @@
+import AppIntents
 import EventKit
 import SwiftUI
 import WidgetKit
@@ -97,12 +98,26 @@ struct NextEventWidgetView: View {
 
     private func homeScreenView(_ event: EventSummary) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Capsule()
-                .fill(event.color)
-                .frame(width: 24, height: 4)
+            HStack {
+                Capsule()
+                    .fill(event.color)
+                    .frame(width: 24, height: 4)
+                Spacer()
+                Button(intent: ToggleEventCompletionIntent(
+                    eventIdentifier: event.eventIdentifier ?? "",
+                    calendarItemExternalIdentifier: event.calendarItemExternalIdentifier,
+                    occurrenceStartDate: event.startDate,
+                    eventTitle: event.title
+                )) {
+                    Image(systemName: event.completed ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(event.completed ? AppTheme.completed : Color.secondary)
+                }
+                .buttonStyle(.plain)
+            }
             Text(event.title)
                 .font(.headline)
                 .lineLimit(2)
+                .strikethrough(event.completed)
             Text(event.isAllDay ? "All-day" : event.startDate.formatted(date: .omitted, time: .shortened))
                 .font(.caption)
                 .foregroundStyle(.secondary)

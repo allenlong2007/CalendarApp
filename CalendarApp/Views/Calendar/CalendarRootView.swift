@@ -13,10 +13,12 @@ enum CalendarViewMode: String, CaseIterable, Identifiable {
 struct CalendarRootView: View {
     @Environment(EventStoreManager.self) private var eventStore
     @Environment(UndoManagerService.self) private var undoManager
+    @Environment(SyncCoordinator.self) private var sync
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Query private var preferencesRows: [AppPreferences]
     @Query private var completionRows: [EventCompletionStatus]
+    @Query private var reminderRows: [EventReminderPreference]
 
     @State private var viewMode: CalendarViewMode = .month
     @State private var referenceDate = Date.now
@@ -101,6 +103,14 @@ struct CalendarRootView: View {
             if eventStore.accessStatus == .notDetermined {
                 await eventStore.requestAccess()
             }
+            await ReminderScheduler.requestAuthorization()
+            await refreshReminders()
+            mirrorLocationsFromEventKit()
+        }
+        .onChange(of: eventStore.externalChangeToken) {
+            Task { await refreshReminders() }
+            mirrorLocationsFromEventKit()
+            Task { await sync.syncNow() }
         }
         .onChange(of: viewMode) { previewEvent = nil }
         .sheet(isPresented: $showingCalendarList) {
@@ -146,7 +156,11 @@ struct CalendarRootView: View {
                     hiddenCalendarIdentifiers: hiddenCalendarIdentifiers,
                     onSelectEvent: { eventEditorContext = .edit($0) },
                     onCreateEvent: { eventEditorContext = .new(defaultDate: $0) },
-                    onPreviewEvent: { previewEvent = $0 }
+                    // Wide layout only -- a single tap with no sidebar to show
+                    // the preview in (narrow/iPhone) used to silently do
+                    // nothing, since onSelectEvent only fired on the much
+                    // less discoverable double-tap in that case.
+                    onPreviewEvent: isWideLayout ? { previewEvent = $0 } : nil
                 )
             case .agenda:
                 AgendaView(
@@ -230,5 +244,30 @@ struct CalendarRootView: View {
         case .agenda:
             break
         }
+    }
+
+    /// Fills in any location override this device is missing from what
+    /// EventKit itself still reports -- see EventLocationAccess.missingOverrides.
+    /// The window reaches a year back so a series' first event (where
+    /// EventKit keeps the location) is included even mid-semester.
+    private func mirrorLocationsFromEventKit() {
+        guard eventStore.accessStatus == .fullAccess else { return }
+        let start = Calendar.current.date(byAdding: .day, value: -365, to: .now)!
+        let end = Calendar.current.date(byAdding: .day, value: 365, to: .now)!
+        EventLocationAccess.mirrorMissing(
+            from: eventStore.events(from: start, to: end),
+            context: modelContext
+        )
+    }
+
+    /// Rebuilds this app's own notification queue (see ReminderScheduler)
+    /// from every event across every calendar -- reminders aren't a
+    /// per-calendar-visibility concept, so this ignores hiddenCalendarIdentifiers
+    /// on purpose. Runs at launch and after every EventKit change.
+    private func refreshReminders() async {
+        let start = Calendar.current.date(byAdding: .day, value: -1, to: .now)!
+        let end = Calendar.current.date(byAdding: .day, value: 180, to: .now)!
+        let events = eventStore.events(from: start, to: end)
+        await ReminderScheduler.refresh(events: events, reminderRows: reminderRows)
     }
 }

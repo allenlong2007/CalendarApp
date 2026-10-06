@@ -1,3 +1,4 @@
+import AppIntents
 import EventKit
 import SwiftUI
 import WidgetKit
@@ -69,12 +70,14 @@ struct TodayAgendaWidgetView: View {
             } else {
                 ForEach(Array(entry.events.prefix(maxRows).enumerated()), id: \.offset) { _, event in
                     HStack(spacing: 6) {
+                        completeButton(for: event)
                         Capsule()
                             .fill(event.color)
                             .frame(width: 3)
                         Text(event.title)
                             .font(.caption.weight(.medium))
                             .lineLimit(1)
+                            .strikethrough(event.completed)
                         Spacer(minLength: 4)
                         Text(event.isAllDay ? "All-day" : event.startDate.formatted(date: .omitted, time: .shortened))
                             .font(.caption2)
@@ -91,6 +94,22 @@ struct TodayAgendaWidgetView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding()
+    }
+
+    /// One-tap complete toggle right on the widget -- no need to open the
+    /// app. Button(intent:) runs ToggleEventCompletionIntent in-process and
+    /// WidgetKit re-renders this widget once it calls reloadAllTimelines().
+    private func completeButton(for event: EventSummary) -> some View {
+        Button(intent: ToggleEventCompletionIntent(
+            eventIdentifier: event.eventIdentifier ?? "",
+            calendarItemExternalIdentifier: event.calendarItemExternalIdentifier,
+            occurrenceStartDate: event.startDate,
+            eventTitle: event.title
+        )) {
+            Image(systemName: event.completed ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(event.completed ? AppTheme.completed : Color.secondary)
+        }
+        .buttonStyle(.plain)
     }
 }
 

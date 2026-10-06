@@ -1,38 +1,95 @@
 import EventKit
 import SwiftData
 
-/// Fetch-then-upsert helpers for EventCompletionStatus, keyed primarily by
-/// calendarItemExternalIdentifier (falling back to eventIdentifier) since
-/// EventCompletionStatus has no schema-level uniqueness constraint.
+/// Fetch-then-upsert helpers for EventCompletionStatus, keyed by identifier
+/// *and* occurrence start date -- see the matching note on `row` below.
+///
+/// Also reachable from the widget extension via raw-identifier overloads
+/// (an AppIntent's parameters must be Codable primitives, so a widget
+/// button can't hand this an EKEvent directly).
 enum EventCompletionAccess {
     static func isCompleted(_ event: EKEvent, in rows: [EventCompletionStatus]) -> Bool {
         row(for: event, in: rows)?.completed ?? false
     }
 
     static func toggle(_ event: EKEvent, in rows: [EventCompletionStatus], context: ModelContext) {
-        if let existing = row(for: event, in: rows) {
+        toggle(
+            eventIdentifier: event.eventIdentifier ?? "",
+            calendarItemExternalIdentifier: event.calendarItemExternalIdentifier,
+            occurrenceStartDate: event.startDate,
+            title: event.title,
+            in: rows,
+            context: context
+        )
+    }
+
+    static func toggle(
+        eventIdentifier: String,
+        calendarItemExternalIdentifier: String?,
+        occurrenceStartDate: Date,
+        title: String?,
+        in rows: [EventCompletionStatus],
+        context: ModelContext
+    ) {
+        if let existing = row(
+            eventIdentifier: eventIdentifier,
+            calendarItemExternalIdentifier: calendarItemExternalIdentifier,
+            occurrenceStartDate: occurrenceStartDate,
+            in: rows
+        ) {
             existing.completed.toggle()
-            existing.lastKnownStartDate = event.startDate
-            existing.lastKnownTitle = event.title
+            existing.lastKnownTitle = title
         } else {
             let status = EventCompletionStatus(
-                eventIdentifier: event.eventIdentifier ?? "",
-                calendarItemExternalIdentifier: event.calendarItemExternalIdentifier,
+                eventIdentifier: eventIdentifier,
+                calendarItemExternalIdentifier: calendarItemExternalIdentifier,
                 completed: true,
-                lastKnownStartDate: event.startDate,
-                lastKnownTitle: event.title
+                lastKnownStartDate: occurrenceStartDate,
+                lastKnownTitle: title
             )
             context.insert(status)
         }
     }
 
+    /// Recurring events share one `eventIdentifier`/`calendarItemExternalIdentifier`
+    /// across every occurrence in the series, so matching by identifier
+    /// alone (the old behavior) made completing a single lecture complete
+    /// every past and future occurrence of it too. The occurrence's own
+    /// start date disambiguates which specific instance a row belongs to.
     private static func row(for event: EKEvent, in rows: [EventCompletionStatus]) -> EventCompletionStatus? {
-        if let external = event.calendarItemExternalIdentifier {
-            if let match = rows.first(where: { $0.calendarItemExternalIdentifier == external }) {
-                return match
-            }
+        row(
+            eventIdentifier: event.eventIdentifier ?? "",
+            calendarItemExternalIdentifier: event.calendarItemExternalIdentifier,
+            occurrenceStartDate: event.startDate,
+            in: rows
+        )
+    }
+
+    private static func row(
+        eventIdentifier: String,
+        calendarItemExternalIdentifier: String?,
+        occurrenceStartDate: Date,
+        in rows: [EventCompletionStatus]
+    ) -> EventCompletionStatus? {
+        rows.first { candidate in
+            matchesIdentifier(candidate, eventIdentifier: eventIdentifier, calendarItemExternalIdentifier: calendarItemExternalIdentifier)
+                && isSameOccurrence(candidate.lastKnownStartDate, occurrenceStartDate)
         }
-        guard let eventIdentifier = event.eventIdentifier else { return nil }
-        return rows.first { $0.eventIdentifier == eventIdentifier }
+    }
+
+    private static func matchesIdentifier(
+        _ candidate: EventCompletionStatus,
+        eventIdentifier: String,
+        calendarItemExternalIdentifier: String?
+    ) -> Bool {
+        if let external = calendarItemExternalIdentifier, let candidateExternal = candidate.calendarItemExternalIdentifier {
+            return external == candidateExternal
+        }
+        return !eventIdentifier.isEmpty && candidate.eventIdentifier == eventIdentifier
+    }
+
+    private static func isSameOccurrence(_ stored: Date?, _ actual: Date) -> Bool {
+        guard let stored else { return false }
+        return abs(stored.timeIntervalSince(actual)) < 60
     }
 }

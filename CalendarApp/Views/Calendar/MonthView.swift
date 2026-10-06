@@ -1,3 +1,4 @@
+import CoreLocation
 import EventKit
 import SwiftData
 import SwiftUI
@@ -24,6 +25,20 @@ struct MonthView: View {
 
     private var isWideLayout: Bool { horizontalSizeClass == .regular }
 
+    /// How many week rows fit in the window at once on wide layouts.
+    private static let visibleWeeks: CGFloat = 3
+
+    /// Scrolls the grid so the week containing the selected day (when it's in
+    /// the month being shown) or else the month's first week is at the top.
+    private func scrollToCurrentWeek(_ proxy: ScrollViewProxy) {
+        let days = gridDays
+        let index = DateMath.isSameMonth(selectedDate, referenceDate)
+            ? days.firstIndex { DateMath.isSameDay($0, selectedDate) }
+            : nil
+        let rowStart = days[((index ?? 0) / 7) * 7]
+        proxy.scrollTo(rowStart, anchor: .top)
+    }
+
     private var gridDays: [Date] { DateMath.monthGridDays(containing: referenceDate, weekStartDay: weekStartDay) }
 
     private var weekdaySymbols: [String] {
@@ -38,7 +53,7 @@ struct MonthView: View {
             to: DateMath.endOfDay(last),
             in: visibleCalendars
         )
-        return Dictionary(grouping: events) { DateMath.startOfDay($0.startDate) }
+        return EventDayGrouping.group(events, within: DateMath.startOfDay(first)...DateMath.startOfDay(last))
     }
 
     private var visibleCalendars: [EKCalendar] {
@@ -59,37 +74,45 @@ struct MonthView: View {
 
             let dayMap = eventsByDay
             if isWideLayout {
-                // A ScrollView wrapper isn't just for overflow on short
-                // windows -- without any UIScrollView present in the tree at
-                // all, Mac Catalyst's navigation bar falls back to reserving
-                // space for a large title instead of honoring
-                // .navigationBarTitleDisplayMode(.inline), which is what
-                // caused a large empty gap under the "September 2026" title.
-                // The GeometryReader also lets rows stretch to fill the full
-                // window height instead of leaving blank space under a
-                // 5-row month.
+                // Roughly three weeks fill the window at a time (the rest of the
+                // month scrolls) instead of squeezing a whole 5-6 week month in:
+                // each day cell gets about twice the height, so many more
+                // events fit before a "+N more" is needed.
+                //
+                // The ScrollView isn't just for the overflow -- without any
+                // UIScrollView in the tree at all, Mac Catalyst's navigation bar
+                // reserves space for a large title instead of honoring
+                // .navigationBarTitleDisplayMode(.inline), which caused a large
+                // empty gap under the "September 2026" title.
                 GeometryReader { geo in
-                    let rowCount = max(1, gridDays.count / 7)
-                    let cellHeight = max(110, geo.size.height / CGFloat(rowCount))
-                    ScrollView(.vertical) {
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 1), count: 7), spacing: 1) {
-                            ForEach(gridDays, id: \.self) { day in
-                                MonthDayCellWide(
-                                    day: day,
-                                    isCurrentMonth: DateMath.isSameMonth(day, referenceDate),
-                                    isToday: DateMath.isSameDay(day, .now),
-                                    isSelected: DateMath.isSameDay(day, selectedDate),
-                                    events: (dayMap[DateMath.startOfDay(day)] ?? []).sorted { $0.startDate < $1.startDate },
-                                    completionRows: completionRows,
-                                    cellHeight: cellHeight,
-                                    onSelectDay: { onSelectDay(day) },
-                                    onAddEvent: { onAddEvent(day) },
-                                    onQuickLook: { onPreviewEvent?($0) },
-                                    onEditEvent: onSelectEvent
-                                )
+                    let cellHeight = max(110, geo.size.height / Self.visibleWeeks)
+                    ScrollViewReader { proxy in
+                        ScrollView(.vertical) {
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 1), count: 7), spacing: 1) {
+                                ForEach(gridDays, id: \.self) { day in
+                                    MonthDayCellWide(
+                                        day: day,
+                                        isCurrentMonth: DateMath.isSameMonth(day, referenceDate),
+                                        isToday: DateMath.isSameDay(day, .now),
+                                        isSelected: DateMath.isSameDay(day, selectedDate),
+                                        events: (dayMap[DateMath.startOfDay(day)] ?? []).sorted { $0.startDate < $1.startDate },
+                                        completionRows: completionRows,
+                                        cellHeight: cellHeight,
+                                        onSelectDay: { onSelectDay(day) },
+                                        onAddEvent: { onAddEvent(day) },
+                                        onQuickLook: { onPreviewEvent?($0) },
+                                        onEditEvent: onSelectEvent
+                                    )
+                                    .id(day)
+                                }
                             }
+                            .background(Color.secondary.opacity(0.15))
                         }
-                        .background(Color.secondary.opacity(0.15))
+                        .onAppear { scrollToCurrentWeek(proxy) }
+                        // Only when the month/reference changes -- not on every
+                        // day selection, or clicking a day in the third visible
+                        // row would yank it to the top of the window.
+                        .onChange(of: referenceDate) { scrollToCurrentWeek(proxy) }
                     }
                 }
             } else {
@@ -319,8 +342,14 @@ struct EventRow: View {
     var onToggleComplete: (() -> Void)?
     var onDelete: (() -> Void)?
 
+    @Query private var locationOverrides: [EventLocationOverride]
+
     private var status: EventStatus {
         EventStatusEvaluator.status(for: event, completed: completed)
+    }
+
+    private var resolvedLocation: (text: String, coordinate: CLLocationCoordinate2D?)? {
+        EventLocationAccess.displayLocation(for: event, in: locationOverrides)
     }
 
     var body: some View {
@@ -334,11 +363,11 @@ struct EventRow: View {
                 Text(timeLabel)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                if let location = event.location, !location.isEmpty {
+                if let resolvedLocation {
                     Button {
-                        openInMaps(location)
+                        openInMaps(resolvedLocation)
                     } label: {
-                        Label(location, systemImage: "mappin.circle.fill")
+                        Label(resolvedLocation.text, systemImage: "mappin.circle.fill")
                             .font(.caption)
                     }
                     .buttonStyle(.plain)
@@ -371,11 +400,11 @@ struct EventRow: View {
         return "\(DateMath.timeFormatter.string(from: event.startDate)) – \(DateMath.timeFormatter.string(from: event.endDate))"
     }
 
-    private func openInMaps(_ location: String) {
-        if let geoLocation = event.structuredLocation?.geoLocation {
-            MapsLauncher.open(title: location, coordinate: geoLocation.coordinate)
+    private func openInMaps(_ resolved: (text: String, coordinate: CLLocationCoordinate2D?)) {
+        if let coordinate = resolved.coordinate {
+            MapsLauncher.open(title: resolved.text, coordinate: coordinate)
         } else {
-            MapsLauncher.search(query: location)
+            MapsLauncher.search(query: resolved.text)
         }
     }
 }
