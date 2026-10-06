@@ -43,16 +43,22 @@ struct NextEventProvider: TimelineProvider {
 
         let now = Date.now
         let events = WidgetEventStore.upcomingEvents(hoursAhead: 24)
-        var entries: [NextEventEntry] = []
 
-        if events.isEmpty {
+        // What the widget should show only changes when an event ends, so build
+        // one entry per distinct end time (plus "now"), each showing the first
+        // event that hasn't ended by then. Entries MUST be in ascending time
+        // order: the earlier approach keyed each entry off the previous event's
+        // end, which went backwards whenever events overlapped or a short event
+        // sat inside a longer one -- WidgetKit then replayed or skipped rows.
+        let changeTimes = Set([now] + events.map(\.endDate).filter { $0 > now }).sorted()
+        var entries: [NextEventEntry] = []
+        for time in changeTimes {
+            let next = events.first { $0.endDate > time }
+            if entries.last?.event?.id == next?.id, !entries.isEmpty { continue }
+            entries.append(NextEventEntry(date: time, event: next, needsAccess: false))
+        }
+        if entries.isEmpty {
             entries.append(NextEventEntry(date: now, event: nil, needsAccess: false))
-        } else {
-            for (index, event) in events.enumerated() {
-                let entryDate = index == 0 ? now : events[index - 1].endDate
-                entries.append(NextEventEntry(date: entryDate, event: event, needsAccess: false))
-            }
-            entries.append(NextEventEntry(date: events.last!.endDate, event: nil, needsAccess: false))
         }
 
         let nextRefresh = Calendar.current.date(byAdding: .hour, value: 4, to: now) ?? now.addingTimeInterval(14400)

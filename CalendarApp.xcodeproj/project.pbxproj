@@ -42,11 +42,13 @@
 		655A93F6119FC4E8DF52C74D /* UndoToastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62B6AAB7CBFD2D8BC7691708 /* UndoToastView.swift */; };
 		66CFC67D82B8D2E9695B648F /* EventLocationOverride.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5233741E0FB162B960D39B9E /* EventLocationOverride.swift */; };
 		67D1F25BED5FFA3786FDD16E /* CalendarAppWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4981D58E8E0AE517A6ECB3C9 /* CalendarAppWidgetsBundle.swift */; };
+		68AAE0EF96AED0DE7BA981C2 /* DuplicateEventFinder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A03D6D8BC027B7F6ECDBB7 /* DuplicateEventFinder.swift */; };
 		692391683D95A6CE89C6EA7B /* CalendarAppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A47AA3DBD752D80B46A6420 /* CalendarAppApp.swift */; };
 		6D4B4E7F552DC76125F2C51B /* CalendarSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFB2A9A7767771EB991A1BF6 /* CalendarSidebarView.swift */; };
 		6F324DEFB21EC2F47EC98123 /* SavedAddress.swift in Sources */ = {isa = PBXBuildFile; fileRef = FADE9FA177CABB78D690AE32 /* SavedAddress.swift */; };
 		7347D15EC116C72D489EE6E1 /* GmailEventExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE2A620DA48E3B935B078691 /* GmailEventExtractor.swift */; };
 		7DD39D85CCB8A7B7B163440A /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC080D5F9ACC4C881ECBCCFF /* AppTheme.swift */; };
+		7E0971778CDF50579B63DA17 /* Motion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26BFEE45EB920EDA9B58A107 /* Motion.swift */; };
 		7F9CFC609CDCD347E9A83A6A /* EventCompletionAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33525A12008EB866ACDDEE1E /* EventCompletionAccess.swift */; };
 		803D4FDA8CC415C3E0032124 /* SyncReconcilerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37143EC6E314976E2157C3B1 /* SyncReconcilerTests.swift */; };
 		89A539748C380AC7A2EF359F /* EventLocationAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05CD0868F696B0E5FD427D89 /* EventLocationAccess.swift */; };
@@ -122,6 +124,7 @@
 
 /* Begin PBXFileReference section */
 		05CD0868F696B0E5FD427D89 /* EventLocationAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventLocationAccess.swift; sourceTree = "<group>"; };
+		08A03D6D8BC027B7F6ECDBB7 /* DuplicateEventFinder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuplicateEventFinder.swift; sourceTree = "<group>"; };
 		0967F713A5DD6B6A055808E6 /* EventCompletionStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventCompletionStatus.swift; sourceTree = "<group>"; };
 		09A23EAC3A6FC3BA41EE8C6F /* PlannerEventEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlannerEventEditorView.swift; sourceTree = "<group>"; };
 		0F0E38D23375FD48B05A0ED8 /* GoogleOAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleOAuthService.swift; sourceTree = "<group>"; };
@@ -130,6 +133,7 @@
 		1A47AA3DBD752D80B46A6420 /* CalendarAppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarAppApp.swift; sourceTree = "<group>"; };
 		23ACDF029406F55C6516CAB0 /* EventReminderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventReminderAccess.swift; sourceTree = "<group>"; };
 		2516FB1F3393324C31E673EB /* NextEventWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextEventWidget.swift; sourceTree = "<group>"; };
+		26BFEE45EB920EDA9B58A107 /* Motion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Motion.swift; sourceTree = "<group>"; };
 		29A6245CDC2BD69D21A9B1CC /* GmailImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GmailImportView.swift; sourceTree = "<group>"; };
 		33525A12008EB866ACDDEE1E /* EventCompletionAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventCompletionAccess.swift; sourceTree = "<group>"; };
 		3397686277D37D8CCBC8D8CA /* SyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCoordinator.swift; sourceTree = "<group>"; };
@@ -263,6 +267,7 @@
 			isa = PBXGroup;
 			children = (
 				ED13098F9D6663F875A6CE73 /* CalendarCategoryManager.swift */,
+				08A03D6D8BC027B7F6ECDBB7 /* DuplicateEventFinder.swift */,
 				EB433682AC53F50711B5A4E6 /* EventStoreManager.swift */,
 				73803D69A945245FF76FD959 /* ICSImporter.swift */,
 			);
@@ -314,6 +319,7 @@
 			children = (
 				FC080D5F9ACC4C881ECBCCFF /* AppTheme.swift */,
 				1A47AA3DBD752D80B46A6420 /* CalendarAppApp.swift */,
+				26BFEE45EB920EDA9B58A107 /* Motion.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -598,6 +604,7 @@
 				6252E90B122B88FA4EB78F51 /* CreateEventIntent.swift in Sources */,
 				0D28F8B6FBB536FBA6D1DAD2 /* DateMath.swift in Sources */,
 				5ACC40F1133542BDCCFF2542 /* DayView.swift in Sources */,
+				68AAE0EF96AED0DE7BA981C2 /* DuplicateEventFinder.swift in Sources */,
 				C017075D261D8D630DB921C4 /* DuplicateToDaysView.swift in Sources */,
 				D1584CF8BBF23E7F9105AD0F /* EventCompletionAccess.swift in Sources */,
 				FF1D256C12D3D20258800580 /* EventCompletionStatus.swift in Sources */,
@@ -627,6 +634,7 @@
 				F39ED463708BC126CA86BDF4 /* MiniMonthPicker.swift in Sources */,
 				ED15D88583B0294E6D550DA7 /* ModelContainerFactory.swift in Sources */,
 				E1D756C89F8CEF69F509466C /* MonthView.swift in Sources */,
+				7E0971778CDF50579B63DA17 /* Motion.swift in Sources */,
 				04C2574048FF41C86F33FCB7 /* NextEventQueryIntent.swift in Sources */,
 				F93A946B0E65647857964118 /* PlannerEvent.swift in Sources */,
 				3DBC6D170DEE17F6EA54E0C1 /* PlannerEventEditorView.swift in Sources */,

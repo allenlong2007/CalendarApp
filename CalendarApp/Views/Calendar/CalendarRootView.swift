@@ -16,6 +16,7 @@ struct CalendarRootView: View {
     @Environment(SyncCoordinator.self) private var sync
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.scenePhase) private var scenePhase
     @Query private var preferencesRows: [AppPreferences]
     @Query private var completionRows: [EventCompletionStatus]
     @Query private var reminderRows: [EventReminderPreference]
@@ -30,6 +31,13 @@ struct CalendarRootView: View {
     /// most recently previewed, shown in the sidebar until the user picks a
     /// different day or event.
     @State private var previewEvent: EKEvent?
+    /// Bumped to make the wide Month view jump to the current reference.
+    @State private var monthJump = 0
+    /// The reference date last set by scrolling, so a change to it that did NOT
+    /// come from scrolling (the mini calendar's arrows) can be told apart.
+    @State private var scrollReportedReference: Date?
+    /// What "today" was last time we looked, to notice a new day (and week) starting.
+    @State private var lastKnownToday = DateMath.startOfDay(.now)
 
     private var preferences: AppPreferences { AppPreferencesAccess.ensure(preferencesRows, in: modelContext) }
     private var hiddenCalendarIdentifiers: Set<String> { Set(preferences.hiddenCalendarIdentifiers) }
@@ -50,7 +58,10 @@ struct CalendarRootView: View {
                             weekStartDay: preferences.weekStartDay,
                             hiddenCalendarIdentifiers: hiddenCalendarIdentifiers,
                             previewEvent: previewEvent,
-                            onSelectDay: selectDay,
+                            onSelectDay: { day in
+                                selectDay(day)
+                                monthJump += 1
+                            },
                             onEditEvent: { eventEditorContext = .edit($0) },
                             onAddEvent: { eventEditorContext = .new(defaultDate: $0) },
                             onToggleComplete: { EventCompletionAccess.toggle($0, in: completionRows, context: modelContext) },
@@ -113,6 +124,11 @@ struct CalendarRootView: View {
             Task { await sync.syncNow() }
         }
         .onChange(of: viewMode) { previewEvent = nil }
+        .onChange(of: referenceDate) {
+            if referenceDate != scrollReportedReference { monthJump += 1 }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in rollOverIfNewDay() }
+        .onChange(of: scenePhase) { _, phase in if phase == .active { rollOverIfNewDay() } }
         .sheet(isPresented: $showingCalendarList) {
             CalendarListSidebarView()
         }
@@ -136,10 +152,19 @@ struct CalendarRootView: View {
                     selectedDate: selectedDate,
                     weekStartDay: preferences.weekStartDay,
                     hiddenCalendarIdentifiers: hiddenCalendarIdentifiers,
+                    jumpToken: monthJump,
                     onSelectDay: selectDay,
                     onSelectEvent: { eventEditorContext = .edit($0) },
                     onAddEvent: { eventEditorContext = .new(defaultDate: $0) },
-                    onPreviewEvent: { previewEvent = $0 }
+                    onPreviewEvent: { previewEvent = $0 },
+                    onVisibleDateChange: { date in
+                        // Scrolling moves the title/mini calendar to the month on
+                        // screen; it must not trigger a jump back (see monthJump).
+                        if !DateMath.isSameMonth(date, referenceDate) {
+                            scrollReportedReference = date
+                            referenceDate = date
+                        }
+                    }
                 )
             case .week:
                 WeekView(
@@ -229,6 +254,36 @@ struct CalendarRootView: View {
         referenceDate = .now
         selectedDate = .now
         previewEvent = nil
+        monthJump += 1
+    }
+
+    /// When a new day starts (midnight, or the app waking after days asleep),
+    /// a view that was sitting on "today" follows it. When the new day also
+    /// starts a new week -- after Saturday night -- the week that just ended
+    /// scrolls out of the starting position and the new current week takes its
+    /// place at the top. Someone browsing elsewhere is left where they are.
+    private func rollOverIfNewDay() {
+        let today = DateMath.startOfDay(.now)
+        guard today != lastKnownToday else { return }
+        let previousToday = lastKnownToday
+        lastKnownToday = today
+
+        let weekStartDay = preferences.weekStartDay
+        let weekChanged = DateMath.startOfWeek(containing: previousToday, weekStartDay: weekStartDay)
+            != DateMath.startOfWeek(containing: today, weekStartDay: weekStartDay)
+        let wasOnPreviousToday = DateMath.isSameDay(selectedDate, previousToday)
+        let wasInPreviousWeek = DateMath.startOfWeek(containing: selectedDate, weekStartDay: weekStartDay)
+            == DateMath.startOfWeek(containing: previousToday, weekStartDay: weekStartDay)
+
+        guard wasOnPreviousToday || (weekChanged && wasInPreviousWeek) else { return }
+        selectedDate = today
+        previewEvent = nil
+        // Moving the reference date is what makes the Month list jump, so only
+        // do it for a new week -- an ordinary new day shouldn't yank the scroll.
+        if weekChanged {
+            referenceDate = today
+            monthJump += 1
+        }
     }
 
     private func step(_ direction: Int) {
@@ -236,6 +291,7 @@ struct CalendarRootView: View {
         switch viewMode {
         case .month:
             referenceDate = DateMath.addingMonths(direction, to: referenceDate)
+            monthJump += 1
         case .week:
             referenceDate = DateMath.addingWeeks(direction, to: referenceDate)
             selectedDate = referenceDate

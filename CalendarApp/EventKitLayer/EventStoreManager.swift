@@ -2,6 +2,7 @@ import CoreLocation
 import EventKit
 import Foundation
 import Observation
+import SwiftUI
 import WidgetKit
 
 enum CalendarAccessStatus {
@@ -159,7 +160,11 @@ final class EventStoreManager {
     /// the EKEventStoreChanged round-trip (debounced, and only meant to catch
     /// changes made outside this screen, e.g. in Apple's own Calendar app).
     private func bumpChangeToken() {
-        externalChangeToken += 1
+        // Our own saves and deletes: a short fade so a new event visibly lands
+        // (and a deleted one visibly leaves) instead of popping in. Not the
+        // external-change path in storeChanged() -- background syncs shouldn't
+        // animate.
+        Motion.perform(Motion.easeOut(0.2)) { externalChangeToken += 1 }
         WidgetCenter.shared.reloadAllTimelines()
     }
 

@@ -203,6 +203,8 @@ struct WeekView: View {
             Image(systemName: completed ? "checkmark.circle.fill" : "circle")
                 .font(.caption2)
                 .foregroundStyle(completed ? AppTheme.completed : Color.secondary)
+                .contentTransition(.symbolEffect(.replace))
+                .animation(Motion.easeOut(0.15), value: completed)
         }
         .buttonStyle(.plain)
     }

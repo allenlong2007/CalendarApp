@@ -8,6 +8,10 @@ struct MonthView: View {
     let selectedDate: Date
     let weekStartDay: Int
     let hiddenCalendarIdentifiers: Set<String>
+    /// Wide layout only. The parent bumps this whenever it wants the week list
+    /// to jump to the current reference (Today, month arrows, a day picked in
+    /// the sidebar, a new week starting); ordinary scrolling never changes it.
+    var jumpToken: Int = 0
     let onSelectDay: (Date) -> Void
     let onSelectEvent: (EKEvent) -> Void
     let onAddEvent: (Date) -> Void
@@ -16,6 +20,9 @@ struct MonthView: View {
     /// CalendarRootView) can show its details -- double-click still opens
     /// the full editor via onSelectEvent.
     var onPreviewEvent: ((EKEvent) -> Void)?
+    /// Wide layout only: the date in the middle of the weeks now on screen,
+    /// reported as the user scrolls so the title and mini calendar follow.
+    var onVisibleDateChange: ((Date) -> Void)?
 
     @Environment(EventStoreManager.self) private var eventStore
     @Environment(UndoManagerService.self) private var undoManager
@@ -23,21 +30,15 @@ struct MonthView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Query private var completionRows: [EventCompletionStatus]
 
+    /// Wide layout: the id (week start) of the row at the top of the window.
+    @State private var topWeek: Date?
+    @State private var rangeStart: Date?
+    @State private var rangeEnd: Date?
+
     private var isWideLayout: Bool { horizontalSizeClass == .regular }
 
     /// How many week rows fit in the window at once on wide layouts.
     private static let visibleWeeks: CGFloat = 3
-
-    /// Scrolls the grid so the week containing the selected day (when it's in
-    /// the month being shown) or else the month's first week is at the top.
-    private func scrollToCurrentWeek(_ proxy: ScrollViewProxy) {
-        let days = gridDays
-        let index = DateMath.isSameMonth(selectedDate, referenceDate)
-            ? days.firstIndex { DateMath.isSameDay($0, selectedDate) }
-            : nil
-        let rowStart = days[((index ?? 0) / 7) * 7]
-        proxy.scrollTo(rowStart, anchor: .top)
-    }
 
     private var gridDays: [Date] { DateMath.monthGridDays(containing: referenceDate, weekStartDay: weekStartDay) }
 
@@ -60,6 +61,57 @@ struct MonthView: View {
         eventStore.calendars.filter { !hiddenCalendarIdentifiers.contains($0.calendarIdentifier) }
     }
 
+    // MARK: - Wide layout: one continuous run of weeks
+
+    private func weekStart(containing date: Date) -> Date {
+        DateMath.startOfWeek(containing: date, weekStartDay: weekStartDay)
+    }
+
+    private var effectiveRangeStart: Date {
+        rangeStart ?? weekStart(containing: DateMath.addingWeeks(-52, to: .now))
+    }
+
+    private var effectiveRangeEnd: Date {
+        rangeEnd ?? weekStart(containing: DateMath.addingWeeks(104, to: .now))
+    }
+
+    private var weekStarts: [Date] {
+        var result: [Date] = []
+        var week = effectiveRangeStart
+        while week <= effectiveRangeEnd {
+            result.append(week)
+            week = DateMath.addingWeeks(1, to: week)
+        }
+        return result
+    }
+
+    /// The week to put at the top: the one holding the selected day when it's
+    /// in the month being shown (Today, a new week rolling over), else the
+    /// week holding the 1st of the month (the month arrows).
+    private var jumpTarget: Date {
+        if DateMath.isSameMonth(selectedDate, referenceDate) { return weekStart(containing: selectedDate) }
+        let first = DateMath.calendar.date(from: DateMath.calendar.dateComponents([.year, .month], from: referenceDate)) ?? referenceDate
+        return weekStart(containing: first)
+    }
+
+    private func jump() {
+        let target = jumpTarget
+        // Grow the range if the target is near or past an edge.
+        if target < DateMath.addingWeeks(4, to: effectiveRangeStart) { rangeStart = weekStart(containing: DateMath.addingWeeks(-26, to: target)) }
+        if target > DateMath.addingWeeks(-8, to: effectiveRangeEnd) { rangeEnd = weekStart(containing: DateMath.addingWeeks(52, to: target)) }
+        // Deferred a beat so the rows exist before the scroll is requested. A
+        // short hop glides (it tells you where you went); a long one -- Today
+        // from months away -- jumps, since gliding through 100 rows just stutters.
+        let distanceInWeeks = topWeek.map { abs(Calendar.current.dateComponents([.day], from: $0, to: target).day ?? 0) / 7 }
+        DispatchQueue.main.async {
+            if let distanceInWeeks, distanceInWeeks <= 8 {
+                Motion.perform(Motion.easeOut(0.3)) { topWeek = target }
+            } else {
+                topWeek = target
+            }
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
@@ -72,12 +124,12 @@ struct MonthView: View {
             }
             .padding(.vertical, 6)
 
-            let dayMap = eventsByDay
             if isWideLayout {
-                // Roughly three weeks fill the window at a time (the rest of the
-                // month scrolls) instead of squeezing a whole 5-6 week month in:
-                // each day cell gets about twice the height, so many more
-                // events fit before a "+N more" is needed.
+                // About three weeks fill the window at a time, in one unbroken
+                // scroll of weeks -- not a month-shaped grid, which near the end
+                // of a month has nothing left to show below the current week. Each
+                // day cell is roughly twice the height of a whole-month grid's, so
+                // far more events fit before a "+N more" is needed.
                 //
                 // The ScrollView isn't just for the overflow -- without any
                 // UIScrollView in the tree at all, Mac Catalyst's navigation bar
@@ -86,36 +138,38 @@ struct MonthView: View {
                 // empty gap under the "September 2026" title.
                 GeometryReader { geo in
                     let cellHeight = max(110, geo.size.height / Self.visibleWeeks)
-                    ScrollViewReader { proxy in
-                        ScrollView(.vertical) {
-                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 1), count: 7), spacing: 1) {
-                                ForEach(gridDays, id: \.self) { day in
-                                    MonthDayCellWide(
-                                        day: day,
-                                        isCurrentMonth: DateMath.isSameMonth(day, referenceDate),
-                                        isToday: DateMath.isSameDay(day, .now),
-                                        isSelected: DateMath.isSameDay(day, selectedDate),
-                                        events: (dayMap[DateMath.startOfDay(day)] ?? []).sorted { $0.startDate < $1.startDate },
-                                        completionRows: completionRows,
-                                        cellHeight: cellHeight,
-                                        onSelectDay: { onSelectDay(day) },
-                                        onAddEvent: { onAddEvent(day) },
-                                        onQuickLook: { onPreviewEvent?($0) },
-                                        onEditEvent: onSelectEvent
-                                    )
-                                    .id(day)
-                                }
+                    ScrollView(.vertical) {
+                        LazyVStack(spacing: 1) {
+                            ForEach(weekStarts, id: \.self) { week in
+                                MonthWeekRow(
+                                    weekStart: week,
+                                    visibleCalendars: visibleCalendars,
+                                    selectedDate: selectedDate,
+                                    completionRows: completionRows,
+                                    cellHeight: cellHeight,
+                                    onSelectDay: onSelectDay,
+                                    onAddEvent: onAddEvent,
+                                    onQuickLook: { onPreviewEvent?($0) },
+                                    onEditEvent: onSelectEvent
+                                )
+                                .frame(height: cellHeight)
+                                .id(week)
                             }
-                            .background(Color.secondary.opacity(0.15))
                         }
-                        .onAppear { scrollToCurrentWeek(proxy) }
-                        // Only when the month/reference changes -- not on every
-                        // day selection, or clicking a day in the third visible
-                        // row would yank it to the top of the window.
-                        .onChange(of: referenceDate) { scrollToCurrentWeek(proxy) }
+                        .scrollTargetLayout()
+                        .background(Color.secondary.opacity(0.15))
+                    }
+                    .scrollPosition(id: $topWeek, anchor: .top)
+                    .onAppear { jump() }
+                    .onChange(of: jumpToken) { jump() }
+                    .onChange(of: topWeek) { _, week in
+                        guard let week else { return }
+                        // The middle of the three visible weeks.
+                        onVisibleDateChange?(DateMath.addingDays(10, to: week))
                     }
                 }
             } else {
+                let dayMap = eventsByDay
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 7), spacing: 2) {
                     ForEach(gridDays, id: \.self) { day in
                         MonthDayCell(
@@ -146,6 +200,50 @@ struct MonthView: View {
     }
 }
 
+/// One week of day cells. Fetches only its own seven days, so the lazy list
+/// above only ever loads events for the weeks actually on screen.
+private struct MonthWeekRow: View {
+    let weekStart: Date
+    let visibleCalendars: [EKCalendar]
+    let selectedDate: Date
+    let completionRows: [EventCompletionStatus]
+    let cellHeight: CGFloat
+    let onSelectDay: (Date) -> Void
+    let onAddEvent: (Date) -> Void
+    let onQuickLook: (EKEvent) -> Void
+    let onEditEvent: (EKEvent) -> Void
+
+    @Environment(EventStoreManager.self) private var eventStore
+
+    var body: some View {
+        let days = (0..<7).map { DateMath.addingDays($0, to: weekStart) }
+        let events = eventStore.events(
+            from: DateMath.startOfDay(days[0]),
+            to: DateMath.endOfDay(days[6]),
+            in: visibleCalendars
+        )
+        let dayMap = EventDayGrouping.group(events, within: DateMath.startOfDay(days[0])...DateMath.startOfDay(days[6]))
+        HStack(spacing: 1) {
+            ForEach(days, id: \.self) { day in
+                MonthDayCellWide(
+                    day: day,
+                    isAlternateMonth: DateMath.calendar.component(.month, from: day) % 2 == 1,
+                    showsMonthLabel: DateMath.calendar.component(.day, from: day) == 1,
+                    isToday: DateMath.isSameDay(day, .now),
+                    isSelected: DateMath.isSameDay(day, selectedDate),
+                    events: (dayMap[DateMath.startOfDay(day)] ?? []).sorted { $0.startDate < $1.startDate },
+                    completionRows: completionRows,
+                    cellHeight: cellHeight,
+                    onSelectDay: { onSelectDay(day) },
+                    onAddEvent: { onAddEvent(day) },
+                    onQuickLook: onQuickLook,
+                    onEditEvent: onEditEvent
+                )
+            }
+        }
+    }
+}
+
 /// Apple Calendar-style day cell for wide (Mac/iPad) windows: events render
 /// directly in the grid as colored chips instead of behind a separate list.
 /// Single-click a chip for a quick-look popover, double-click to edit;
@@ -153,7 +251,10 @@ struct MonthView: View {
 /// new event there -- the same click/double-click split Apple Calendar uses.
 private struct MonthDayCellWide: View {
     let day: Date
-    let isCurrentMonth: Bool
+    /// Alternate months get a faint tint, since weeks run on unbroken across
+    /// month boundaries and nothing else would mark where one month ends.
+    let isAlternateMonth: Bool
+    let showsMonthLabel: Bool
     let isToday: Bool
     let isSelected: Bool
     let events: [EKEvent]
@@ -170,19 +271,30 @@ private struct MonthDayCellWide: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(DateMath.dayNumberFormatter.string(from: day))
-                .font(.system(size: 13, weight: isToday ? .bold : .regular))
-                .frame(width: 22, height: 22)
-                .background {
-                    if isToday {
-                        Circle().fill(AppTheme.ultramarine)
-                    } else if isSelected {
-                        Circle().stroke(AppTheme.ultramarine, lineWidth: 1.5)
-                    }
+            HStack(spacing: 3) {
+                if showsMonthLabel {
+                    Text(day.formatted(.dateTime.month(.abbreviated)))
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(AppTheme.ultramarine)
                 }
-                .foregroundStyle(isToday ? Color.white : (isCurrentMonth ? Color.primary : Color.secondary.opacity(0.5)))
-                .padding(.top, 4)
-                .padding(.leading, 4)
+                Text(DateMath.dayNumberFormatter.string(from: day))
+                    .font(.system(size: 13, weight: isToday ? .bold : .regular))
+                    .frame(width: 22, height: 22)
+                    .background {
+                        ZStack {
+                            if isToday {
+                                Circle().fill(AppTheme.ultramarine)
+                            } else if isSelected {
+                                Circle().stroke(AppTheme.ultramarine, lineWidth: 1.5)
+                                    .transition(.opacity)
+                            }
+                        }
+                        .animation(Motion.easeOut(0.12), value: isSelected)
+                    }
+                    .foregroundStyle(isToday ? Color.white : Color.primary)
+            }
+            .padding(.top, 4)
+            .padding(.leading, 4)
 
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(events.prefix(maxVisibleChips), id: \.eventIdentifier) { event in
@@ -205,7 +317,7 @@ private struct MonthDayCellWide: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, minHeight: cellHeight, maxHeight: cellHeight, alignment: .topLeading)
-        .background(isCurrentMonth ? Color.clear : Color.secondary.opacity(0.04))
+        .background(isAlternateMonth ? Color.secondary.opacity(0.06) : Color.clear)
         .contentShape(Rectangle())
         .onTapGesture(count: 2) { onAddEvent() }
         .onTapGesture(count: 1) { onSelectDay() }
@@ -221,10 +333,13 @@ private struct EventChip: View {
     }
 
     var body: some View {
+        // A solid bar plus a stronger tint (it was a 6pt dot on an 18% wash,
+        // which read as one grey-teal blur): the category color is what the eye
+        // scans a dense month for, so it gets the most contrast.
+        let color = EventStatusEvaluator.displayColor(for: status, categoryColor: AppTheme.calendarColor(for: event.calendar))
+        // The bar is an overlay, not a sibling view: a bare Rectangle in the
+        // stack is infinitely tall and stretches every chip to fill its cell.
         HStack(spacing: 4) {
-            Circle()
-                .fill(EventStatusEvaluator.displayColor(for: status, categoryColor: AppTheme.calendarColor(for: event.calendar)))
-                .frame(width: 6, height: 6)
             if !event.isAllDay {
                 Text(DateMath.timeFormatter.string(from: event.startDate))
                     .font(.caption2)
@@ -236,10 +351,16 @@ private struct EventChip: View {
                 .font(.caption2.weight(.medium))
                 .lineLimit(1)
         }
-        .padding(.horizontal, 4)
+        .padding(.leading, 7)
+        .padding(.trailing, 4)
         .padding(.vertical, 2)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(EventStatusEvaluator.displayColor(for: status, categoryColor: AppTheme.calendarColor(for: event.calendar)).opacity(0.18), in: RoundedRectangle(cornerRadius: 4))
+        .background(color.opacity(0.30))
+        .overlay(alignment: .leading) {
+            Rectangle().fill(color).frame(width: 3)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 4))
+        .animation(Motion.easeOut(0.2), value: completed)
         .contentShape(Rectangle())
     }
 }
@@ -380,6 +501,8 @@ struct EventRow: View {
                     Image(systemName: completed ? "checkmark.circle.fill" : "circle")
                         .font(.title3)
                         .foregroundStyle(completed ? AppTheme.completed : Color.secondary)
+                        .contentTransition(.symbolEffect(.replace))
+                        .animation(Motion.easeOut(0.15), value: completed)
                 }
                 .buttonStyle(.plain)
             }

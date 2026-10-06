@@ -68,7 +68,7 @@ struct TodayAgendaWidgetView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(Array(entry.events.prefix(maxRows).enumerated()), id: \.offset) { _, event in
+                ForEach(Array(entry.events.prefix(maxRows)), id: \.id) { event in
                     HStack(spacing: 6) {
                         completeButton(for: event)
                         Capsule()

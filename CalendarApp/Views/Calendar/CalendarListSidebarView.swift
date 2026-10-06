@@ -15,6 +15,8 @@ struct CalendarListSidebarView: View {
     @State private var editorContext: CalendarEditorContext?
     @State private var showingImport = false
     @State private var showingGmailImport = false
+    @State private var duplicateScan: DuplicateEventFinder.Duplicates?
+    @State private var duplicateMessage: String?
 
     private var preferences: AppPreferences { AppPreferencesAccess.ensure(preferencesRows, in: modelContext) }
 
@@ -77,6 +79,21 @@ struct CalendarListSidebarView: View {
 
                 Section {
                     Button {
+                        let found = DuplicateEventFinder.scan(eventStore)
+                        if found.extras.isEmpty {
+                            duplicateMessage = "No duplicate events found."
+                        } else {
+                            duplicateScan = found
+                        }
+                    } label: {
+                        Label("Find Duplicate Events", systemImage: "square.on.square.dashed")
+                    }
+                } footer: {
+                    Text("Looks for events saved twice with the same calendar, title and time. Repeating events are never touched.")
+                }
+
+                Section {
+                    Button {
                         showingImport = true
                     } label: {
                         Label("Import from Web App", systemImage: "square.and.arrow.down")
@@ -102,6 +119,21 @@ struct CalendarListSidebarView: View {
                     }
                 }
             }
+            .confirmationDialog(
+                duplicateDialogTitle,
+                isPresented: Binding(get: { duplicateScan != nil }, set: { if !$0 { duplicateScan = nil } }),
+                titleVisibility: .visible
+            ) {
+                Button("Remove Duplicates", role: .destructive) { removeDuplicates() }
+                Button("Cancel", role: .cancel) { duplicateScan = nil }
+            } message: {
+                if let scan = duplicateScan {
+                    Text("One copy of each stays. Affects: \(scan.sampleTitles.joined(separator: ", "))\(scan.groupCount > scan.sampleTitles.count ? ", and more" : "").")
+                }
+            }
+            .alert(duplicateMessage ?? "", isPresented: Binding(get: { duplicateMessage != nil }, set: { if !$0 { duplicateMessage = nil } })) {
+                Button("OK", role: .cancel) {}
+            }
             .sheet(item: $editorContext) { context in
                 CalendarEditorView(context: context)
             }
@@ -112,6 +144,19 @@ struct CalendarListSidebarView: View {
                 GmailImportView()
             }
         }
+    }
+
+    private var duplicateDialogTitle: String {
+        let count = duplicateScan?.extras.count ?? 0
+        return "Remove \(count) duplicate event\(count == 1 ? "" : "s")?"
+    }
+
+    private func removeDuplicates() {
+        guard let scan = duplicateScan else { return }
+        var removed = 0
+        for event in scan.extras where (try? eventStore.delete(event)) != nil { removed += 1 }
+        duplicateScan = nil
+        duplicateMessage = "Removed \(removed) duplicate event\(removed == 1 ? "" : "s")."
     }
 
     private var syncStatusText: String {
