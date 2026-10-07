@@ -100,6 +100,12 @@ targets:
 schemes:
   CalendarApp:
     build:
+      # Free-account profiles last 7 days but Xcode only renews one after it has
+      # expired -- see the script. Keeps every run's signing at least ~6 days fresh.
+      preActions:
+        - name: Renew stale signing profiles
+          script: '"${SRCROOT}/scripts/renew-stale-profiles.sh"'
+          settingsTarget: CalendarApp
       targets:
         CalendarApp: all
         CalendarAppTests: [test]
