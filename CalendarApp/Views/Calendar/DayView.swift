@@ -113,6 +113,12 @@ struct DayView: View {
                                                     Text(timeRangeText(for: event))
                                                         .font(.caption2)
                                                 }
+                                                if frame.height > 76, let notes = event.notes?.trimmingCharacters(in: .whitespacesAndNewlines), !notes.isEmpty {
+                                                    Text(notes)
+                                                        .font(.caption2)
+                                                        .lineLimit(2)
+                                                        .opacity(0.85)
+                                                }
                                             }
                                             Spacer(minLength: 0)
                                             completeButton(for: event)

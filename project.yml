@@ -47,6 +47,10 @@ targets:
           - CFBundleURLName: com.footsoregnu3115.calendarapp.oauth
             CFBundleURLSchemes:
               - com.footsoregnu3115.calendarapp
+        UIBackgroundModes:
+          - fetch
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.footsoregnu3115.calendarapp.refresh
     dependencies:
       - target: CalendarAppWidgets
         embed: true
@@ -66,6 +70,8 @@ targets:
       - path: CalendarApp/Views/Shared/EventStatusColor.swift
         buildPhase: sources
       - path: CalendarApp/Views/Shared/EventCompletionAccess.swift
+        buildPhase: sources
+      - path: CalendarApp/Views/Shared/CompletionOutbox.swift
         buildPhase: sources
       - path: CalendarApp/PersistenceLayer
         buildPhase: sources
@@ -100,12 +106,6 @@ targets:
 schemes:
   CalendarApp:
     build:
-      # Free-account profiles last 7 days but Xcode only renews one after it has
-      # expired -- see the script. Keeps every run's signing at least ~6 days fresh.
-      preActions:
-        - name: Renew stale signing profiles
-          script: '"${SRCROOT}/scripts/renew-stale-profiles.sh"'
-          settingsTarget: CalendarApp
       targets:
         CalendarApp: all
         CalendarAppTests: [test]

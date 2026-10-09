@@ -79,18 +79,33 @@ enum WidgetEventStore {
         }
     }
 
+    /// Stored state, overlaid with taps the app hasn't applied yet (see
+    /// CompletionOutbox) so a tap shows up on the widget immediately.
+    private static func isCompleted(_ event: EKEvent, rows: [EventCompletionStatus], queued: [PendingCompletion]) -> Bool {
+        let startMs = Int64((event.startDate.timeIntervalSince1970 * 1000).rounded())
+        if let pending = CompletionOutbox.latestValue(
+            eventIdentifier: event.eventIdentifier ?? "",
+            external: event.calendarItemExternalIdentifier,
+            startMs: startMs,
+            in: queued
+        ) { return pending }
+        return EventCompletionAccess.isCompleted(event, in: rows)
+    }
+
     static func upcomingEvents(hoursAhead: Int) -> [EventSummary] {
         let now = Date.now
         guard let end = Calendar.current.date(byAdding: .hour, value: hoursAhead, to: now) else { return [] }
         let rows = completionRows()
+        let queued = CompletionOutbox.pending().map(\.item)
         return events(from: now, to: end)
             .filter { !$0.isAllDay && $0.endDate > now }
-            .map { EventSummary(event: $0, completed: EventCompletionAccess.isCompleted($0, in: rows)) }
+            .map { EventSummary(event: $0, completed: isCompleted($0, rows: rows, queued: queued)) }
     }
 
     static func todaysEvents() -> [EventSummary] {
         let rows = completionRows()
+        let queued = CompletionOutbox.pending().map(\.item)
         return events(from: DateMath.startOfDay(.now), to: DateMath.endOfDay(.now))
-            .map { EventSummary(event: $0, completed: EventCompletionAccess.isCompleted($0, in: rows)) }
+            .map { EventSummary(event: $0, completed: isCompleted($0, rows: rows, queued: queued)) }
     }
 }

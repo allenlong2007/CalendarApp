@@ -25,6 +25,10 @@ final class SyncCoordinator {
 
     private(set) var status: Status = .idle
 
+    /// For callbacks that can't capture the coordinator (the widget's Darwin
+    /// notification, the system's background-refresh task).
+    static weak var current: SyncCoordinator?
+
     private let deviceID: String
     private let ledgerFileName: String
     private var container: ModelContainer?
@@ -53,11 +57,18 @@ final class SyncCoordinator {
     func attach(container: ModelContainer, eventStore: EventStoreManager) {
         self.container = container
         self.eventStore = eventStore
+        Self.current = self
     }
 
     func start(container: ModelContainer, eventStore: EventStoreManager) {
         guard loop == nil else { return }
         attach(container: container, eventStore: eventStore)
+        // A widget tap while the app is running: apply it right away.
+        CFNotificationCenterAddObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(), nil,
+            { _, _, _, _, _ in Task { @MainActor in SyncCoordinator.current?.drainOutbox() } },
+            CompletionOutbox.darwinName as CFString, nil, .deliverImmediately
+        )
         loop = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.syncNow()
@@ -66,7 +77,33 @@ final class SyncCoordinator {
         }
     }
 
+    /// Applies checkmark changes queued by a widget (see CompletionOutbox) to
+    /// this app's own database, so the app shows them and the sync below sends
+    /// them on to the other devices.
+    func drainOutbox() {
+        guard let container else { return }
+        let queued = CompletionOutbox.pending()
+        guard !queued.isEmpty else { return }
+        let context = container.mainContext
+        for entry in queued {
+            let item = entry.item
+            let rows = (try? context.fetch(FetchDescriptor<EventCompletionStatus>())) ?? []
+            EventCompletionAccess.set(
+                item.completed,
+                eventIdentifier: item.eventIdentifier,
+                calendarItemExternalIdentifier: item.external,
+                occurrenceStartDate: Date(timeIntervalSince1970: Double(item.startMs) / 1000),
+                title: item.title,
+                in: rows,
+                context: context
+            )
+        }
+        try? context.save()
+        CompletionOutbox.remove(queued.map(\.url))
+    }
+
     func syncNow() async {
+        drainOutbox()
         guard !isSyncing, let container, let eventStore, eventStore.accessStatus == .fullAccess else { return }
         isSyncing = true
         status = .syncing

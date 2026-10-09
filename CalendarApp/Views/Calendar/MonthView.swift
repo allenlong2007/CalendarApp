@@ -473,6 +473,12 @@ struct EventRow: View {
         EventLocationAccess.displayLocation(for: event, in: locationOverrides)
     }
 
+    private var trimmedNotes: String? {
+        guard let notes = event.notes?.trimmingCharacters(in: .whitespacesAndNewlines),
+              notes.contains(where: \.isLetter) || notes.contains(where: \.isNumber) else { return nil }
+        return notes
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Capsule()
@@ -493,6 +499,15 @@ struct EventRow: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(AppTheme.ultramarine)
+                }
+                // Notes were only ever visible in the Mac's side panel or at the
+                // bottom of the edit form, so on the phone they looked like they
+                // hadn't synced -- even though Apple Calendar showed them.
+                if let notes = trimmedNotes {
+                    Text(notes)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
                 }
             }
             Spacer()

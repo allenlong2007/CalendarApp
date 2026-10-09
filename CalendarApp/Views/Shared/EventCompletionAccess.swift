@@ -1,5 +1,6 @@
 import EventKit
 import SwiftData
+import WidgetKit
 
 /// Fetch-then-upsert helpers for EventCompletionStatus, keyed by identifier
 /// *and* occurrence start date -- see the matching note on `row` below.
@@ -10,6 +11,20 @@ import SwiftData
 enum EventCompletionAccess {
     static func isCompleted(_ event: EKEvent, in rows: [EventCompletionStatus]) -> Bool {
         row(for: event, in: rows)?.completed ?? false
+    }
+
+    static func isCompleted(
+        eventIdentifier: String,
+        calendarItemExternalIdentifier: String?,
+        occurrenceStartDate: Date,
+        in rows: [EventCompletionStatus]
+    ) -> Bool {
+        row(
+            eventIdentifier: eventIdentifier,
+            calendarItemExternalIdentifier: calendarItemExternalIdentifier,
+            occurrenceStartDate: occurrenceStartDate,
+            in: rows
+        )?.completed ?? false
     }
 
     static func toggle(_ event: EKEvent, in rows: [EventCompletionStatus], context: ModelContext) {
@@ -48,6 +63,39 @@ enum EventCompletionAccess {
                 lastKnownTitle: title
             )
             context.insert(status)
+        }
+        // The widgets read this same store; without this they only caught up
+        // whenever iOS next chose to refresh them.
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    /// Sets (rather than flips) an occurrence's completed state, so applying
+    /// the same widget change twice is harmless.
+    static func set(
+        _ completed: Bool,
+        eventIdentifier: String,
+        calendarItemExternalIdentifier: String?,
+        occurrenceStartDate: Date,
+        title: String?,
+        in rows: [EventCompletionStatus],
+        context: ModelContext
+    ) {
+        if let existing = row(
+            eventIdentifier: eventIdentifier,
+            calendarItemExternalIdentifier: calendarItemExternalIdentifier,
+            occurrenceStartDate: occurrenceStartDate,
+            in: rows
+        ) {
+            existing.completed = completed
+            existing.lastKnownTitle = title
+        } else {
+            context.insert(EventCompletionStatus(
+                eventIdentifier: eventIdentifier,
+                calendarItemExternalIdentifier: calendarItemExternalIdentifier,
+                completed: completed,
+                lastKnownStartDate: occurrenceStartDate,
+                lastKnownTitle: title
+            ))
         }
     }
 
