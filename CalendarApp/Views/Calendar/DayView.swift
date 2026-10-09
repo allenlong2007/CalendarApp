@@ -183,17 +183,13 @@ struct DayView: View {
     /// the only way to mark something complete from Day view was to open
     /// the full editor and find the "Mark Complete" toggle buried in its form.
     private func completeButton(for event: EKEvent) -> some View {
-        let completed = EventCompletionAccess.isCompleted(event, in: completionRows)
-        return Button {
+        CompletionCheckButton(
+            completed: EventCompletionAccess.isCompleted(event, in: completionRows),
+            font: .callout,
+            hitSize: 36
+        ) {
             EventCompletionAccess.toggle(event, in: completionRows, context: modelContext)
-        } label: {
-            Image(systemName: completed ? "checkmark.circle.fill" : "circle")
-                .font(.callout)
-                .foregroundStyle(completed ? AppTheme.completed : Color.secondary)
-                .contentTransition(.symbolEffect(.replace))
-                .animation(Motion.easeOut(0.15), value: completed)
         }
-        .buttonStyle(.plain)
     }
 
     private func colorFor(_ event: EKEvent) -> Color {

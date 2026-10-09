@@ -196,17 +196,13 @@ struct WeekView: View {
     /// Same one-tap complete toggle as DayView -- see its own doc comment.
     /// Only shown on blocks tall enough to fit it without crowding the title.
     private func completeButton(for event: EKEvent) -> some View {
-        let completed = EventCompletionAccess.isCompleted(event, in: completionRows)
-        return Button {
+        CompletionCheckButton(
+            completed: EventCompletionAccess.isCompleted(event, in: completionRows),
+            font: .caption2,
+            hitSize: 28
+        ) {
             EventCompletionAccess.toggle(event, in: completionRows, context: modelContext)
-        } label: {
-            Image(systemName: completed ? "checkmark.circle.fill" : "circle")
-                .font(.caption2)
-                .foregroundStyle(completed ? AppTheme.completed : Color.secondary)
-                .contentTransition(.symbolEffect(.replace))
-                .animation(Motion.easeOut(0.15), value: completed)
         }
-        .buttonStyle(.plain)
     }
 
     private func colorFor(_ event: EKEvent) -> Color {

@@ -34,6 +34,7 @@ struct ToggleEventCompletionIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
+        CompletionMirror.note("tap on \(eventTitle ?? "?") (calendar access: \(WidgetEventStore.hasAccess))")
         // Read-only: the app is the one writer (see CompletionOutbox for why).
         let rows = (try? ModelContext(ModelContainerFactory.make()).fetch(FetchDescriptor<EventCompletionStatus>())) ?? []
         let startMs = Int64((occurrenceStartDate.timeIntervalSince1970 * 1000).rounded())
@@ -58,6 +59,9 @@ struct ToggleEventCompletionIntent: AppIntent {
             completed: !current,
             atMs: Int64(Date.now.timeIntervalSince1970 * 1000)
         ))
+        // Also publish straight to the sync calendar, so the Mac and the phone app
+        // get it without waiting for the phone app to run (see CompletionMirror).
+        CompletionMirror.publishFromWidget(external: external, start: occurrenceStartDate, completed: !current, title: eventTitle)
         WidgetCenter.shared.reloadAllTimelines()
         return .result()
     }

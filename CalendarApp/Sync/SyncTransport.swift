@@ -13,11 +13,11 @@ import Foundation
 ///   CALAPP-SYNC1|<device>|<pushID>|<part>|<total>|<pushedAtMs>
 /// A reader only trusts a (device, pushID) group once every part is present,
 /// so a half-synced write is ignored until the rest arrives.
-@MainActor
 struct SyncTransport {
     let store: EKEventStore
     let deviceID: String
 
+    static let calendarTitle = "CalendarApp Sync"
     static let marker = "CALAPP-SYNC1"
     private static let chunkSize = 48_000
     /// Every snapshot event sits at this one fixed moment (2001-01-01 12:00
@@ -30,7 +30,7 @@ struct SyncTransport {
     // MARK: - Calendar
 
     func syncCalendars() -> [EKCalendar] {
-        store.calendars(for: .event).filter { $0.title == EventStoreManager.syncCalendarTitle }
+        store.calendars(for: .event).filter { $0.title == Self.calendarTitle }
     }
 
     /// Creates the sync calendar if neither device has yet. If both devices
@@ -42,7 +42,7 @@ struct SyncTransport {
             throw SyncError.noICloudCalendar
         }
         let calendar = EKCalendar(for: .event, eventStore: store)
-        calendar.title = EventStoreManager.syncCalendarTitle
+        calendar.title = Self.calendarTitle
         calendar.source = source
         calendar.cgColor = CGColor(gray: 0.5, alpha: 1)
         try store.saveCalendar(calendar, commit: true)

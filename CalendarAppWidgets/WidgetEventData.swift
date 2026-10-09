@@ -79,6 +79,13 @@ enum WidgetEventStore {
         }
     }
 
+    /// Checkmarks not in the stored rows yet: other devices' newer ones the app
+    /// hasn't merged (see CompletionMirror), then this widget's own queued taps.
+    /// Newest wins, so a tap made after a Mac change still shows.
+    private static func pendingChanges() -> [PendingCompletion] {
+        CompletionMirror.unmergedRemoteChanges(store: EKEventStore()) + CompletionOutbox.pending().map(\.item)
+    }
+
     /// Stored state, overlaid with taps the app hasn't applied yet (see
     /// CompletionOutbox) so a tap shows up on the widget immediately.
     private static func isCompleted(_ event: EKEvent, rows: [EventCompletionStatus], queued: [PendingCompletion]) -> Bool {
@@ -96,7 +103,7 @@ enum WidgetEventStore {
         let now = Date.now
         guard let end = Calendar.current.date(byAdding: .hour, value: hoursAhead, to: now) else { return [] }
         let rows = completionRows()
-        let queued = CompletionOutbox.pending().map(\.item)
+        let queued = pendingChanges()
         return events(from: now, to: end)
             .filter { !$0.isAllDay && $0.endDate > now }
             .map { EventSummary(event: $0, completed: isCompleted($0, rows: rows, queued: queued)) }
@@ -104,7 +111,7 @@ enum WidgetEventStore {
 
     static func todaysEvents() -> [EventSummary] {
         let rows = completionRows()
-        let queued = CompletionOutbox.pending().map(\.item)
+        let queued = pendingChanges()
         return events(from: DateMath.startOfDay(.now), to: DateMath.endOfDay(.now))
             .map { EventSummary(event: $0, completed: isCompleted($0, rows: rows, queued: queued)) }
     }

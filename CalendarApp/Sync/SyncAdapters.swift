@@ -4,7 +4,6 @@ import SwiftData
 
 // Wire formats. Calendar references are carried as calendar *titles*, never
 // identifiers -- EKCalendar.calendarIdentifier is local to each device.
-private struct CompletionPayload: Codable { var external: String; var startMs: Int64; var completed: Bool; var title: String? }
 private struct ReminderPayload: Codable { var external: String; var minutes: Int?; var startMs: Int64?; var title: String? }
 private struct LocationPayload: Codable { var text: String; var lat: Double?; var lon: Double? }
 private struct TemplatePayload: Codable {
@@ -79,9 +78,9 @@ struct SyncAdapters {
         for row in all(EventCompletionStatus.self) {
             guard let external = row.calendarItemExternalIdentifier, !external.isEmpty,
                   let start = row.lastKnownStartDate,
-                  let payload = SyncCodec.canonical(CompletionPayload(external: external, startMs: ms(start), completed: row.completed, title: row.lastKnownTitle))
+                  let payload = CompletionMirror.payload(external: external, start: start, completed: row.completed, title: row.lastKnownTitle)
             else { continue }
-            result["completion/\(external)|\(minute(start))"] = payload
+            result[CompletionMirror.recordID(external: external, start: start)] = payload
         }
         for row in all(EventReminderPreference.self) {
             guard let external = row.calendarItemExternalIdentifier, !external.isEmpty,

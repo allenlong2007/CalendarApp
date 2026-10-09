@@ -10,7 +10,7 @@ import WidgetKit
 /// this covers everything EventKit has no place for, which would normally
 /// need CloudKit (unavailable on a free developer account).
 ///
-/// Runs every ~20s while the app is open, and immediately on launch, when the
+/// Runs every ~10s while the app is open, and immediately on launch, when the
 /// app returns to the foreground, and whenever the calendar store changes.
 /// Each pass is cheap when nothing changed: diff, compare a digest, done.
 @Observable
@@ -34,6 +34,7 @@ final class SyncCoordinator {
     private var container: ModelContainer?
     private var eventStore: EventStoreManager?
     private var loop: Task<Void, Never>?
+    private var pushObserver: Task<Void, Never>?
     private var isSyncing = false
 
     /// For tests: a second, independent "device" sharing this process.
@@ -72,7 +73,14 @@ final class SyncCoordinator {
         loop = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.syncNow()
-                try? await Task.sleep(for: .seconds(20))
+                try? await Task.sleep(for: .seconds(10))
+            }
+        }
+        // A checkmark changed in the app: push it right away.
+        pushObserver = Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: .completionChangedLocally) {
+                try? await Task.sleep(for: .milliseconds(150))
+                await self?.syncNow()
             }
         }
     }
@@ -159,6 +167,7 @@ final class SyncCoordinator {
             file.records = ledger
             file.existed = true
             saveLedger(file)
+            CompletionMirror.write(deviceID: deviceID, ledger: ledger)
 
             if !toApply.isEmpty {
                 WidgetCenter.shared.reloadAllTimelines()

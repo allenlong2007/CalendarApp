@@ -9,9 +9,11 @@
 /* Begin PBXBuildFile section */
 		04C2574048FF41C86F33FCB7 /* NextEventQueryIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE518DA05F6A742D0C0A73CD /* NextEventQueryIntent.swift */; };
 		059CD2B955C3922D8D0F5C38 /* EventTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A52F0E257516420FB903FFDB /* EventTemplate.swift */; };
+		0755F269AA7415DE7B37D7EB /* CompletionCheckButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2279106AAB46C57616AAA8D0 /* CompletionCheckButton.swift */; };
 		080758CF4FCDE63E9A8C17F7 /* KeychainTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23D4CDC2A46CFA25636512E /* KeychainTokenStore.swift */; };
 		0D28F8B6FBB536FBA6D1DAD2 /* DateMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDC9201E6D7C137A1488503E /* DateMath.swift */; };
 		0F48940A5818F6AB324FEE17 /* CompletionOutbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A195855C14EF9992DB1B12 /* CompletionOutbox.swift */; };
+		1050C0399DF25100720597A2 /* CompletionMirror.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1759F8C476FB5C170B89A5AD /* CompletionMirror.swift */; };
 		107C8F2DEFD23A2A23471CC5 /* LocationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 450FA9E15442C2535BB4CDE5 /* LocationPickerView.swift */; };
 		1112953CED86F1395799549A /* EventKitAccessGateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA2204CD0316873E6F13049 /* EventKitAccessGateView.swift */; };
 		126A3A738358460D36BE3ADB /* EventDayGrouping.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0D9CF308E639D59B20A5A03 /* EventDayGrouping.swift */; };
@@ -34,6 +36,7 @@
 		482AB4C656EAF030A3B5AE70 /* GoogleOAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F0E38D23375FD48B05A0ED8 /* GoogleOAuthService.swift */; };
 		48A156C9967AAFD163C3D142 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BA3310DCFD003E09F54D3ABE /* Assets.xcassets */; };
 		4A6F0F3E491CF2F2F42EBAD2 /* ToggleEventCompletionIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B91AAE1EB2F0E351240D28B5 /* ToggleEventCompletionIntent.swift */; };
+		4CBBD1E2C822E951AD693B28 /* SyncReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47530604D8B1AF4741D95550 /* SyncReconciler.swift */; };
 		532EFEE20063AC35DEC6370C /* EventQuickLookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5957FCA5F23A6CCC1FED36E9 /* EventQuickLookView.swift */; };
 		5A10134F95AD403205E51FE0 /* CalendarCategoryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED13098F9D6663F875A6CE73 /* CalendarCategoryManager.swift */; };
 		5ACC40F1133542BDCCFF2542 /* DayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A36BFF863F6B34B4746BFF0 /* DayView.swift */; };
@@ -55,6 +58,7 @@
 		803D4FDA8CC415C3E0032124 /* SyncReconcilerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37143EC6E314976E2157C3B1 /* SyncReconcilerTests.swift */; };
 		89A539748C380AC7A2EF359F /* EventLocationAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05CD0868F696B0E5FD427D89 /* EventLocationAccess.swift */; };
 		961536C43B82540806378DFF /* CalendarAppTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 630BE18CDE9EA805082EAE19 /* CalendarAppTests.swift */; };
+		972451A267763A63C03A52AE /* CompletionMirrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F637A68E150FA806DA9F955 /* CompletionMirrorTests.swift */; };
 		97AE74B619110F9AB936242E /* SavedAddress.swift in Sources */ = {isa = PBXBuildFile; fileRef = FADE9FA177CABB78D690AE32 /* SavedAddress.swift */; };
 		A6F318D11520D65B84C1E8E5 /* GoogleOAuthConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = C763FF5FCD0797D98A958CA0 /* GoogleOAuthConfig.swift */; };
 		AD6A3D539C522C0188967BB2 /* CompletionOutboxTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC8279062C78D1C32A432242 /* CompletionOutboxTests.swift */; };
@@ -62,6 +66,7 @@
 		AF34902CEDFBF3646F45AE58 /* PlannerEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 495701DC23C2623E3735C6F3 /* PlannerEvent.swift */; };
 		AF6C5EBBE59115B739B8BBCD /* EventCompletionStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0967F713A5DD6B6A055808E6 /* EventCompletionStatus.swift */; };
 		B0071FA5A6B5019847E6042C /* AppPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BEF6D502390FF9C3C791F8B /* AppPreferences.swift */; };
+		BAEDF32760E54A96324CDD69 /* SyncTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54AAD3C72D1CB7F233FADD86 /* SyncTransport.swift */; };
 		BF1DC63431927C1A59B94784 /* NextEventWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2516FB1F3393324C31E673EB /* NextEventWidget.swift */; };
 		BF5FCC8EA97900F93C717F64 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC080D5F9ACC4C881ECBCCFF /* AppTheme.swift */; };
 		C017075D261D8D630DB921C4 /* DuplicateToDaysView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9EB388B577BDDD6B55084DB /* DuplicateToDaysView.swift */; };
@@ -79,6 +84,7 @@
 		D8CFBB9D5F917185C0625A6D /* SyncReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47530604D8B1AF4741D95550 /* SyncReconciler.swift */; };
 		DD4218DDA0EFE4D66603D66C /* WeekView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5845B0CCD181181A6B1EA1DD /* WeekView.swift */; };
 		DD7CFAC4E9C615A2F746CE3B /* CompletionOutbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A195855C14EF9992DB1B12 /* CompletionOutbox.swift */; };
+		E134417C24CA9D85A3D24F2D /* CompletionMirror.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1759F8C476FB5C170B89A5AD /* CompletionMirror.swift */; };
 		E1D756C89F8CEF69F509466C /* MonthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5788641ABB8E4391B97A7928 /* MonthView.swift */; };
 		E35B7EB1EB399CCD656DA912 /* AgendaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1D99E85E255155ED446DBBD /* AgendaView.swift */; };
 		E475497189E96E8CA8623414 /* DateMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDC9201E6D7C137A1488503E /* DateMath.swift */; };
@@ -132,9 +138,12 @@
 		0967F713A5DD6B6A055808E6 /* EventCompletionStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventCompletionStatus.swift; sourceTree = "<group>"; };
 		09A23EAC3A6FC3BA41EE8C6F /* PlannerEventEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlannerEventEditorView.swift; sourceTree = "<group>"; };
 		0F0E38D23375FD48B05A0ED8 /* GoogleOAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleOAuthService.swift; sourceTree = "<group>"; };
+		0F637A68E150FA806DA9F955 /* CompletionMirrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionMirrorTests.swift; sourceTree = "<group>"; };
 		10E264872694DEA00BF60E9F /* CalendarListSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarListSidebarView.swift; sourceTree = "<group>"; };
 		130A5525A0C0F7A5F8822151 /* EventEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventEditorView.swift; sourceTree = "<group>"; };
+		1759F8C476FB5C170B89A5AD /* CompletionMirror.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionMirror.swift; sourceTree = "<group>"; };
 		1A47AA3DBD752D80B46A6420 /* CalendarAppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarAppApp.swift; sourceTree = "<group>"; };
+		2279106AAB46C57616AAA8D0 /* CompletionCheckButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionCheckButton.swift; sourceTree = "<group>"; };
 		23ACDF029406F55C6516CAB0 /* EventReminderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventReminderAccess.swift; sourceTree = "<group>"; };
 		2516FB1F3393324C31E673EB /* NextEventWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextEventWidget.swift; sourceTree = "<group>"; };
 		26BFEE45EB920EDA9B58A107 /* Motion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Motion.swift; sourceTree = "<group>"; };
@@ -245,6 +254,7 @@
 			isa = PBXGroup;
 			children = (
 				34D94AF6AC3962F9801F15DD /* BackgroundSync.swift */,
+				1759F8C476FB5C170B89A5AD /* CompletionMirror.swift */,
 				D5B689BDDDE31DEAA2BD68CF /* SyncAdapters.swift */,
 				3397686277D37D8CCBC8D8CA /* SyncCoordinator.swift */,
 				47530604D8B1AF4741D95550 /* SyncReconciler.swift */,
@@ -258,6 +268,7 @@
 			children = (
 				6C1651C80CB9DFB271464E15 /* AppPreferencesAccess.swift */,
 				FFC7E5D28E8F19A78CA146FB /* CategoryChip.swift */,
+				2279106AAB46C57616AAA8D0 /* CompletionCheckButton.swift */,
 				60A195855C14EF9992DB1B12 /* CompletionOutbox.swift */,
 				DDC9201E6D7C137A1488503E /* DateMath.swift */,
 				33525A12008EB866ACDDEE1E /* EventCompletionAccess.swift */,
@@ -309,6 +320,7 @@
 			isa = PBXGroup;
 			children = (
 				630BE18CDE9EA805082EAE19 /* CalendarAppTests.swift */,
+				0F637A68E150FA806DA9F955 /* CompletionMirrorTests.swift */,
 				FC8279062C78D1C32A432242 /* CompletionOutboxTests.swift */,
 				37143EC6E314976E2157C3B1 /* SyncReconcilerTests.swift */,
 			);
@@ -592,6 +604,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				961536C43B82540806378DFF /* CalendarAppTests.swift in Sources */,
+				972451A267763A63C03A52AE /* CompletionMirrorTests.swift in Sources */,
 				AD6A3D539C522C0188967BB2 /* CompletionOutboxTests.swift in Sources */,
 				803D4FDA8CC415C3E0032124 /* SyncReconcilerTests.swift in Sources */,
 			);
@@ -613,6 +626,8 @@
 				C2A851B9665733974989FE4F /* CalendarRootView.swift in Sources */,
 				6D4B4E7F552DC76125F2C51B /* CalendarSidebarView.swift in Sources */,
 				C29AFF38A120D311E1AB2DF5 /* CategoryChip.swift in Sources */,
+				0755F269AA7415DE7B37D7EB /* CompletionCheckButton.swift in Sources */,
+				1050C0399DF25100720597A2 /* CompletionMirror.swift in Sources */,
 				0F48940A5818F6AB324FEE17 /* CompletionOutbox.swift in Sources */,
 				6252E90B122B88FA4EB78F51 /* CreateEventIntent.swift in Sources */,
 				0D28F8B6FBB536FBA6D1DAD2 /* DateMath.swift in Sources */,
@@ -673,6 +688,7 @@
 				B0071FA5A6B5019847E6042C /* AppPreferences.swift in Sources */,
 				BF5FCC8EA97900F93C717F64 /* AppTheme.swift in Sources */,
 				67D1F25BED5FFA3786FDD16E /* CalendarAppWidgetsBundle.swift in Sources */,
+				E134417C24CA9D85A3D24F2D /* CompletionMirror.swift in Sources */,
 				DD7CFAC4E9C615A2F746CE3B /* CompletionOutbox.swift in Sources */,
 				E475497189E96E8CA8623414 /* DateMath.swift in Sources */,
 				7F9CFC609CDCD347E9A83A6A /* EventCompletionAccess.swift in Sources */,
@@ -685,6 +701,8 @@
 				BF1DC63431927C1A59B94784 /* NextEventWidget.swift in Sources */,
 				AF34902CEDFBF3646F45AE58 /* PlannerEvent.swift in Sources */,
 				97AE74B619110F9AB936242E /* SavedAddress.swift in Sources */,
+				4CBBD1E2C822E951AD693B28 /* SyncReconciler.swift in Sources */,
+				BAEDF32760E54A96324CDD69 /* SyncTransport.swift in Sources */,
 				FCE91B607744F0DBAC4E41AA /* TodayAgendaWidget.swift in Sources */,
 				4A6F0F3E491CF2F2F42EBAD2 /* ToggleEventCompletionIntent.swift in Sources */,
 				EC9B081F88031AA1030C3DD9 /* WidgetEventData.swift in Sources */,

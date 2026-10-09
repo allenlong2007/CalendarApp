@@ -512,22 +512,19 @@ struct EventRow: View {
             }
             Spacer()
             if let onToggleComplete {
-                Button(action: onToggleComplete) {
-                    Image(systemName: completed ? "checkmark.circle.fill" : "circle")
-                        .font(.title3)
-                        .foregroundStyle(completed ? AppTheme.completed : Color.secondary)
-                        .contentTransition(.symbolEffect(.replace))
-                        .animation(Motion.easeOut(0.15), value: completed)
-                }
-                .buttonStyle(.plain)
+                CompletionCheckButton(completed: completed, action: onToggleComplete)
             }
             if let onDelete, event.calendar?.allowsContentModifications == true {
-                Button(action: onDelete) {
-                    Image(systemName: "trash.circle.fill")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
+                Image(systemName: "trash.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+                    .highPriorityGesture(TapGesture().onEnded(onDelete))
+                    .accessibilityElement()
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityLabel("Delete event")
+                    .accessibilityAction(.default, onDelete)
             }
         }
         .padding(.vertical, 2)

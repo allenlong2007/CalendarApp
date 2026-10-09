@@ -42,9 +42,10 @@ struct TodayAgendaProvider: TimelineProvider {
 
         let events = WidgetEventStore.todaysEvents()
         let entry = TodayAgendaEntry(date: .now, events: events, needsAccess: false)
-        // Midnight rollover is the only thing that changes "today" -- refresh then.
+        // Refresh soon so checkmarks made on the Mac show up without the app
+        // having to run (see CompletionMirror), and at the latest at midnight.
         let midnight = DateMath.addingDays(1, to: DateMath.startOfDay(.now))
-        completion(Timeline(entries: [entry], policy: .after(midnight)))
+        completion(Timeline(entries: [entry], policy: .after(min(midnight, .now.addingTimeInterval(15 * 60)))))
     }
 }
 

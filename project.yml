@@ -73,6 +73,12 @@ targets:
         buildPhase: sources
       - path: CalendarApp/Views/Shared/CompletionOutbox.swift
         buildPhase: sources
+      - path: CalendarApp/Sync/SyncTransport.swift
+        buildPhase: sources
+      - path: CalendarApp/Sync/SyncReconciler.swift
+        buildPhase: sources
+      - path: CalendarApp/Sync/CompletionMirror.swift
+        buildPhase: sources
       - path: CalendarApp/PersistenceLayer
         buildPhase: sources
     settings:

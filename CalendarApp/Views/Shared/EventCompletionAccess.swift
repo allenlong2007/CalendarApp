@@ -8,6 +8,12 @@ import WidgetKit
 /// Also reachable from the widget extension via raw-identifier overloads
 /// (an AppIntent's parameters must be Codable primitives, so a widget
 /// button can't hand this an EKEvent directly).
+extension Notification.Name {
+    /// Posted after the user changes a checkmark in the app, so sync can push it
+    /// immediately instead of waiting for its next scheduled pass.
+    static let completionChangedLocally = Notification.Name("calendarapp.completionChangedLocally")
+}
+
 enum EventCompletionAccess {
     static func isCompleted(_ event: EKEvent, in rows: [EventCompletionStatus]) -> Bool {
         row(for: event, in: rows)?.completed ?? false
@@ -64,9 +70,11 @@ enum EventCompletionAccess {
             )
             context.insert(status)
         }
-        // The widgets read this same store; without this they only caught up
-        // whenever iOS next chose to refresh them.
+        // Save now (not at SwiftData's leisure) so the widgets and the sync
+        // pass below read the new value, then tell the sync to go right away.
+        try? context.save()
         WidgetCenter.shared.reloadAllTimelines()
+        NotificationCenter.default.post(name: .completionChangedLocally, object: nil)
     }
 
     /// Sets (rather than flips) an occurrence's completed state, so applying

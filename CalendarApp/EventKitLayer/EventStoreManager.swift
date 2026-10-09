@@ -20,7 +20,7 @@ enum CalendarAccessStatus {
 final class EventStoreManager {
     /// The hidden iCloud calendar SyncTransport uses to carry app data
     /// between devices. It's a plumbing detail, never a user calendar.
-    static let syncCalendarTitle = "CalendarApp Sync"
+    static let syncCalendarTitle = SyncTransport.calendarTitle
 
     let store = EKEventStore()
 

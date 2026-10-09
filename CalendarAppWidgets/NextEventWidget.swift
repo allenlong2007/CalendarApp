@@ -61,7 +61,9 @@ struct NextEventProvider: TimelineProvider {
             entries.append(NextEventEntry(date: now, event: nil, needsAccess: false))
         }
 
-        let nextRefresh = Calendar.current.date(byAdding: .hour, value: 4, to: now) ?? now.addingTimeInterval(14400)
+        // Short, so a checkmark made on the Mac shows up here soon without the app
+        // having to run (see CompletionMirror).
+        let nextRefresh = now.addingTimeInterval(15 * 60)
         completion(Timeline(entries: entries, policy: .after(nextRefresh)))
     }
 }
