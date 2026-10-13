@@ -137,6 +137,15 @@ struct PlannerView: View {
                                 Divider().frame(height: hourHeight, alignment: .top)
                             }
                         }
+                        // Tap-to-create lives on this background grid only. On the whole stack it also
+                        // caught taps meant for event blocks and their checkmarks (a checkmark tap
+                        // opened a "New Event" form instead of toggling).
+                        .contentShape(Rectangle())
+                        .gesture(
+                            SpatialTapGesture().onEnded { value in
+                                editorContext = .new(weekday: weekday, startMinutes: minutesFor(y: value.location.y))
+                            }
+                        )
                         ForEach(events(for: weekday), id: \.id) { event in
                             let frame = layout(for: event, width: geo.size.width)
                             RoundedRectangle(cornerRadius: 6)
@@ -153,12 +162,6 @@ struct PlannerView: View {
                                 .onTapGesture { editorContext = .edit(event) }
                         }
                     }
-                    .contentShape(Rectangle())
-                    .gesture(
-                        SpatialTapGesture().onEnded { value in
-                            editorContext = .new(weekday: weekday, startMinutes: minutesFor(y: value.location.y))
-                        }
-                    )
                 }
                 .frame(height: hourHeight * 24)
                 .frame(maxWidth: .infinity)

@@ -92,6 +92,10 @@ struct EventEditorView: View {
     @State private var originalHadLocation = false
     @State private var showingLocationPicker = false
     @State private var showingDuplicateToDays = false
+    /// onAppear fires again whenever a sheet opened from this form (the location
+    /// picker) closes. Populating a second time threw away what had just been
+    /// picked -- and for a new event, blanked the whole form.
+    @State private var didPopulate = false
 
     private var isEditing: Bool {
         if case .edit = context { return true }
@@ -308,6 +312,8 @@ struct EventEditorView: View {
     }
 
     private func populateIfNeeded() {
+        guard !didPopulate else { return }
+        didPopulate = true
         switch context {
         case .new(let defaultDate):
             title = ""

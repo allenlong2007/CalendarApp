@@ -10,12 +10,15 @@ struct CompletionCheckButton: View {
     let completed: Bool
     var font: Font = .title3
     var hitSize: CGFloat = 44
+    /// On a colored event block the "done" green would vanish into the block
+    /// (done blocks turn green), so draw it white there.
+    var onColoredBackground = false
     let action: () -> Void
 
     var body: some View {
         Image(systemName: completed ? "checkmark.circle.fill" : "circle")
             .font(font)
-            .foregroundStyle(completed ? AppTheme.completed : Color.secondary)
+            .foregroundStyle(onColoredBackground ? Color.white.opacity(completed ? 1 : 0.75) : (completed ? AppTheme.completed : Color.secondary))
             .contentTransition(.symbolEffect(.replace))
             .animation(Motion.easeOut(0.15), value: completed)
             .frame(width: hitSize, height: hitSize)

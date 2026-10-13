@@ -62,9 +62,17 @@ enum CompletionMirror {
     /// Empty until the app has run once and written its file.
     static func unmergedRemoteChanges(store: EKEventStore) -> [PendingCompletion] {
         guard let url, let data = try? Data(contentsOf: url),
-              let mirror = try? JSONDecoder().decode(File.self, from: data) else { return [] }
-        let snapshots = SyncTransport(store: store, deviceID: mirror.deviceID).readRemoteSnapshots()
+              let mirror = try? JSONDecoder().decode(File.self, from: data) else {
+            note("refresh: no mirror file, remote overlay off")
+            return []
+        }
+        let transport = SyncTransport(store: store, deviceID: mirror.deviceID)
+        let snapshots = transport.readRemoteSnapshots()
         var result: [PendingCompletion] = []
+        defer {
+            let newest = snapshots.flatMap { $0 }.map(\.modifiedAt).max()
+            note("refresh: sync calendars=\(transport.syncCalendars().count) snapshots=\(snapshots.count) records=\(snapshots.reduce(0) { $0 + $1.count }) newestRemote=\(newest?.formatted(.iso8601) ?? "none") unmerged=\(result.count)")
+        }
         for snapshot in snapshots {
             for record in snapshot where record.id.hasPrefix("completion/") && !record.deleted {
                 let modifiedMs = Int64((record.modifiedAt.timeIntervalSince1970 * 1000).rounded())

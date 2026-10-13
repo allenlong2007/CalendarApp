@@ -94,6 +94,15 @@ struct DayView: View {
                                     Divider().frame(height: hourHeight, alignment: .top)
                                 }
                             }
+                            // Tap-to-create lives on this background grid only. On the whole stack it also
+                            // caught taps meant for event blocks and their checkmarks (a checkmark tap
+                            // opened a "New Event" form instead of toggling).
+                            .contentShape(Rectangle())
+                            .gesture(
+                                SpatialTapGesture().onEnded { value in
+                                    onCreateEvent(dateFor(y: value.location.y))
+                                }
+                            )
                             ForEach(timedEvents, id: \.eventIdentifier) { event in
                                 let frame = layout(for: event, width: geo.size.width)
                                 RoundedRectangle(cornerRadius: 6)
@@ -127,22 +136,17 @@ struct DayView: View {
                                         .padding(8)
                                     }
                                     .frame(width: frame.width, height: frame.height, alignment: .topLeading)
-                                    .offset(x: frame.x, y: frame.y)
                                     .contentShape(Rectangle())
                                     .onTapGesture(count: 2) { onSelectEvent(event) }
                                     .onTapGesture(count: 1) { onPreviewEvent?(event) ?? onSelectEvent(event) }
+                                    // Placed (not offset) so the tap area is where the block is drawn.
+                                    .position(x: frame.x + frame.width / 2, y: frame.y + frame.height / 2)
                             }
 
                             if DateMath.isSameDay(date, .now) {
                                 nowLine(width: geo.size.width)
                             }
                         }
-                        .contentShape(Rectangle())
-                        .gesture(
-                            SpatialTapGesture().onEnded { value in
-                                onCreateEvent(dateFor(y: value.location.y))
-                            }
-                        )
                     }
                     .frame(height: hourHeight * 24)
                 }
@@ -186,7 +190,8 @@ struct DayView: View {
         CompletionCheckButton(
             completed: EventCompletionAccess.isCompleted(event, in: completionRows),
             font: .callout,
-            hitSize: 36
+            hitSize: 36,
+            onColoredBackground: true
         ) {
             EventCompletionAccess.toggle(event, in: completionRows, context: modelContext)
         }
