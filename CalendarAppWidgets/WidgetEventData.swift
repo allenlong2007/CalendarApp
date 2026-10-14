@@ -17,13 +17,20 @@ struct EventSummary {
     let eventIdentifier: String?
     let calendarItemExternalIdentifier: String?
     let completed: Bool
+    /// Other events with exactly this title and time (see WidgetEventStore.events).
+    /// Shown as one row, so a tap has to check them all off together -- otherwise
+    /// the widget marks one copy and the row looks unchanged or flips back.
+    let peerEventIdentifiers: [String]
+    let peerExternalIdentifiers: [String]
 
     /// Stable identity for SwiftUI lists and for collapsing repeats.
     var id: String { "\(title)|\(startDate.timeIntervalSince1970)|\(endDate.timeIntervalSince1970)|\(isAllDay)" }
 
     var color: Color { Color(red: colorComponents.red, green: colorComponents.green, blue: colorComponents.blue) }
 
-    init(event: EKEvent, completed: Bool = false) {
+    init(event: EKEvent, completed: Bool = false, peers: [EKEvent] = []) {
+        peerEventIdentifiers = peers.map { $0.eventIdentifier ?? "" }
+        peerExternalIdentifiers = peers.map { $0.calendarItemExternalIdentifier ?? "" }
         title = event.title ?? "Untitled"
         startDate = event.startDate
         endDate = event.endDate
@@ -62,7 +69,9 @@ enum WidgetEventStore {
     /// removed and exact repeats collapsed. A widget has room for a handful of
     /// rows, so one event listed twice (the same title and time saved twice, or
     /// present in two calendars) is the first thing that looks like a glitch.
-    private static func events(from start: Date, to end: Date) -> [EKEvent] {
+    /// The collapsed copies ride along as `peers` so completion treats the row
+    /// as one thing.
+    private static func events(from start: Date, to end: Date) -> [(event: EKEvent, peers: [EKEvent])] {
         let store = EKEventStore()
         let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
         let sorted = store.events(matching: predicate)
@@ -72,11 +81,24 @@ enum WidgetEventStore {
                 if lhs.endDate != rhs.endDate { return lhs.endDate < rhs.endDate }
                 return (lhs.title ?? "") < (rhs.title ?? "")
             }
-        var seen = Set<String>()
-        return sorted.filter { event in
+        var order: [String] = []
+        var groups: [String: [EKEvent]] = [:]
+        for event in sorted {
             let key = "\(event.title ?? "")|\(event.startDate.timeIntervalSince1970)|\(event.endDate.timeIntervalSince1970)|\(event.isAllDay)"
-            return seen.insert(key).inserted
+            if groups[key] == nil { order.append(key) }
+            groups[key, default: []].append(event)
         }
+        return order.compactMap { key in
+            guard let group = groups[key], let first = group.first else { return nil }
+            return (event: first, peers: Array(group.dropFirst()))
+        }
+    }
+
+    private static func summary(_ group: (event: EKEvent, peers: [EKEvent]), rows: [EventCompletionStatus], queued: [PendingCompletion]) -> EventSummary {
+        // Done if any copy is done: the app lists the copies separately, and
+        // whichever one was ticked there is the one the user meant.
+        let done = ([group.event] + group.peers).contains { isCompleted($0, rows: rows, queued: queued) }
+        return EventSummary(event: group.event, completed: done, peers: group.peers)
     }
 
     /// Checkmarks not in the stored rows yet: other devices' newer ones the app
@@ -105,14 +127,14 @@ enum WidgetEventStore {
         let rows = completionRows()
         let queued = pendingChanges()
         return events(from: now, to: end)
-            .filter { !$0.isAllDay && $0.endDate > now }
-            .map { EventSummary(event: $0, completed: isCompleted($0, rows: rows, queued: queued)) }
+            .filter { !$0.event.isAllDay && $0.event.endDate > now }
+            .map { summary($0, rows: rows, queued: queued) }
     }
 
     static func todaysEvents() -> [EventSummary] {
         let rows = completionRows()
         let queued = pendingChanges()
         return events(from: DateMath.startOfDay(.now), to: DateMath.endOfDay(.now))
-            .map { EventSummary(event: $0, completed: isCompleted($0, rows: rows, queued: queued)) }
+            .map { summary($0, rows: rows, queued: queued) }
     }
 }

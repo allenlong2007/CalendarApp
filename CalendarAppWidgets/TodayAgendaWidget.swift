@@ -105,7 +105,9 @@ struct TodayAgendaWidgetView: View {
             eventIdentifier: event.eventIdentifier ?? "",
             calendarItemExternalIdentifier: event.calendarItemExternalIdentifier,
             occurrenceStartDate: event.startDate,
-            eventTitle: event.title
+            eventTitle: event.title,
+            peerEventIdentifiers: event.peerEventIdentifiers,
+            peerExternalIdentifiers: event.peerExternalIdentifiers
         )) {
             Image(systemName: event.completed ? "checkmark.circle.fill" : "circle")
                 .foregroundStyle(event.completed ? AppTheme.completed : Color.secondary)
