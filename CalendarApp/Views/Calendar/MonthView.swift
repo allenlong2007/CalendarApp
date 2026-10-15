@@ -515,16 +515,7 @@ struct EventRow: View {
                 CompletionCheckButton(completed: completed, action: onToggleComplete)
             }
             if let onDelete, event.calendar?.allowsContentModifications == true {
-                Image(systemName: "trash.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-                    .highPriorityGesture(TapGesture().onEnded(onDelete))
-                    .accessibilityElement()
-                    .accessibilityAddTraits(.isButton)
-                    .accessibilityLabel("Delete event")
-                    .accessibilityAction(.default, onDelete)
+                EventTrashButton(event: event, onDelete: onDelete)
             }
         }
         .padding(.vertical, 2)

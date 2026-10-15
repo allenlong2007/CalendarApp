@@ -10,6 +10,7 @@ struct EventQuickLookView: View {
     let event: EKEvent
     let completed: Bool
     var onToggleComplete: (() -> Void)?
+    var onDelete: (() -> Void)?
 
     @Query private var locationOverrides: [EventLocationOverride]
 
@@ -40,14 +41,10 @@ struct EventQuickLookView: View {
                 }
                 Spacer()
                 if let onToggleComplete {
-                    Button(action: onToggleComplete) {
-                        Image(systemName: completed ? "checkmark.circle.fill" : "circle")
-                            .font(.title2)
-                            .foregroundStyle(completed ? AppTheme.completed : Color.secondary)
-                            .contentTransition(.symbolEffect(.replace))
-                            .animation(Motion.easeOut(0.15), value: completed)
-                    }
-                    .buttonStyle(.plain)
+                    CompletionCheckButton(completed: completed, font: .title2, action: onToggleComplete)
+                }
+                if let onDelete, event.calendar?.allowsContentModifications == true {
+                    EventTrashButton(event: event, font: .title2, onDelete: onDelete)
                 }
             }
 
@@ -75,7 +72,13 @@ struct EventQuickLookView: View {
     }
 
     private var timeText: String {
-        event.isAllDay ? "All-day" : "\(DateMath.timeFormatter.string(from: event.startDate)) – \(DateMath.timeFormatter.string(from: event.endDate))"
+        if EventTrashButton.spansMultipleDays(event) {
+            // One event across several days -- say so, since it shows on each of them.
+            let day = DateMath.monthDayYearFormatter
+            if event.isAllDay { return "All-day, through \(day.string(from: event.endDate.addingTimeInterval(-1)))" }
+            return "until \(day.string(from: event.endDate)), \(DateMath.timeFormatter.string(from: event.endDate))"
+        }
+        return event.isAllDay ? "All-day" : "\(DateMath.timeFormatter.string(from: event.startDate)) – \(DateMath.timeFormatter.string(from: event.endDate))"
     }
 
     private func recurrenceText(for rule: EKRecurrenceRule) -> String {

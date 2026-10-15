@@ -65,7 +65,11 @@ struct CalendarRootView: View {
                             onEditEvent: { eventEditorContext = .edit($0) },
                             onAddEvent: { eventEditorContext = .new(defaultDate: $0) },
                             onToggleComplete: { EventCompletionAccess.toggle($0, in: completionRows, context: modelContext) },
-                            onDelete: { eventStore.deleteWithUndo($0, undoManager: undoManager) }
+                            onDelete: { event in
+                                // The quick-look panel may be showing this very event.
+                                if previewEvent?.eventIdentifier == event.eventIdentifier { previewEvent = nil }
+                                eventStore.deleteWithUndo(event, undoManager: undoManager)
+                            }
                         )
                     }
                 } else {

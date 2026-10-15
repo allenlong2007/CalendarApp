@@ -75,6 +75,7 @@
 		C7806C3A5BA7A08ACCF19081 /* MapsLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42E0BCAEEB4076602864556D /* MapsLauncher.swift */; };
 		C7A00C5E39F6605D3B4CEDE5 /* ModelContainerFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2E26DC681D27448D99C5DD6 /* ModelContainerFactory.swift */; };
 		CB866E8422C6037A0872FF6D /* ReminderScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E4DC4148C64C58019C7900 /* ReminderScheduler.swift */; };
+		CF496EFEB3303DAFE4976F27 /* EventTrashButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B6D8234ECE66741642EFC96 /* EventTrashButton.swift */; };
 		D1584CF8BBF23E7F9105AD0F /* EventCompletionAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33525A12008EB866ACDDEE1E /* EventCompletionAccess.swift */; };
 		D24E4D03E3C321E35A965481 /* EventLocationOverride.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5233741E0FB162B960D39B9E /* EventLocationOverride.swift */; };
 		D396D3A8C49310D87A8F98E8 /* CalendarAppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABABF9AF4B56EF343E08F479 /* CalendarAppShortcuts.swift */; };
@@ -176,6 +177,7 @@
 		78C927D3EF58F80F42033E71 /* LocationSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationSearchService.swift; sourceTree = "<group>"; };
 		7A36BFF863F6B34B4746BFF0 /* DayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayView.swift; sourceTree = "<group>"; };
 		9A64DF638463FA6DD039C777 /* CalendarAppWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = CalendarAppWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		9B6D8234ECE66741642EFC96 /* EventTrashButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventTrashButton.swift; sourceTree = "<group>"; };
 		9F26929D3FA8206C874AC575 /* CalendarApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CalendarApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A52F0E257516420FB903FFDB /* EventTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventTemplate.swift; sourceTree = "<group>"; };
 		AB02EB50D5AEE176BE4D57E3 /* MiniMonthPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniMonthPicker.swift; sourceTree = "<group>"; };
@@ -278,6 +280,7 @@
 				5957FCA5F23A6CCC1FED36E9 /* EventQuickLookView.swift */,
 				23ACDF029406F55C6516CAB0 /* EventReminderAccess.swift */,
 				5FE0FC37FF6A7055E6A0B617 /* EventStatusColor.swift */,
+				9B6D8234ECE66741642EFC96 /* EventTrashButton.swift */,
 				62B6AAB7CBFD2D8BC7691708 /* UndoToastView.swift */,
 			);
 			path = Shared;
@@ -648,6 +651,7 @@
 				14D4401433A5D09701D6E1DF /* EventStoreManager.swift in Sources */,
 				17E7854F782E081B1C189876 /* EventTemplate.swift in Sources */,
 				32C2E17265308595FB035476 /* EventTemplateEditorView.swift in Sources */,
+				CF496EFEB3303DAFE4976F27 /* EventTrashButton.swift in Sources */,
 				3311222ED92FC958EC7DD653 /* GmailAPIClient.swift in Sources */,
 				7347D15EC116C72D489EE6E1 /* GmailEventExtractor.swift in Sources */,
 				210BA13F5205AE66C8EA79E9 /* GmailImportView.swift in Sources */,
