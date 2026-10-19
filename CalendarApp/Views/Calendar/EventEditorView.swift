@@ -7,11 +7,14 @@ import SwiftUI
 enum EventEditorContext: Identifiable {
     case new(defaultDate: Date)
     case edit(EKEvent)
+    /// A new event pre-filled from what was said (see VoiceEventView).
+    case draft(EventDraft)
 
     var id: String {
         switch self {
         case .new(let date): return "new-\(date.timeIntervalSince1970)"
         case .edit(let event): return "edit-\(event.eventIdentifier ?? event.calendarItemIdentifier)"
+        case .draft(let draft): return "draft-\(draft.title)-\(draft.start?.timeIntervalSince1970 ?? 0)"
         }
     }
 }
@@ -332,6 +335,23 @@ struct EventEditorView: View {
             repeatOption = .never
             repeatOccurrences = 8
             selectedCalendarIdentifier = eventStore.store.defaultCalendarForNewEvents?.calendarIdentifier
+                ?? writableCalendars.first?.calendarIdentifier
+        case .draft(let draft):
+            title = draft.title
+            isAllDay = draft.isAllDay
+            let start = draft.start ?? Self.sensibleDefaultStart(for: .now)
+            startDate = start
+            endDate = draft.end ?? start.addingTimeInterval(3600)
+            location = draft.location ?? ""
+            locationLatitude = nil
+            locationLongitude = nil
+            notes = draft.notes ?? ""
+            reminderMinutes = draft.reminderMinutes.map { $0 == 0 ? nil : $0 } ?? 15
+            repeatOption = .never
+            repeatOccurrences = 8
+            let named = writableCalendars.first { $0.title.caseInsensitiveCompare(draft.calendarTitle ?? "") == .orderedSame }
+            selectedCalendarIdentifier = named?.calendarIdentifier
+                ?? eventStore.store.defaultCalendarForNewEvents?.calendarIdentifier
                 ?? writableCalendars.first?.calendarIdentifier
         case .edit(let event):
             title = event.title ?? ""

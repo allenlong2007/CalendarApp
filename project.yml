@@ -34,6 +34,8 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription: "This calendar app needs access to your calendars to show and create events."
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Used to hear the events you say out loud so they can be added to your calendar."
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "Used to turn what you say into a calendar event. Recognition happens on your phone when it can."
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Used to prioritize nearby places when searching for an event location."
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"

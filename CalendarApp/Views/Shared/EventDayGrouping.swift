@@ -51,4 +51,24 @@ enum EventDayGrouping {
         let end = clampedEnd.timeIntervalSince(dayStart) / 60
         return (start, max(start + 20, end))
     }
+
+    /// The hours of `event` that fall on `day`, as text. An event that runs
+    /// overnight is one event, but on the second day only that day's hours are
+    /// relevant ("12:00 AM – 8:00 AM"), and on the first only up to midnight.
+    static func timeRangeText(of event: EKEvent, on day: Date) -> String {
+        if event.isAllDay { return "All-day" }
+        let dayStart = DateMath.startOfDay(day)
+        let dayEnd = DateMath.addingDays(1, to: dayStart)
+        let eventStart: Date = event.startDate
+        let eventEnd: Date = event.endDate
+        let start = max(eventStart, dayStart)
+        let end = min(eventEnd, dayEnd)
+        return "\(DateMath.timeFormatter.string(from: start)) – \(DateMath.timeFormatter.string(from: end))"
+    }
+
+    /// When `event` begins on `day` (midnight, on the days after it started).
+    static func startText(of event: EKEvent, on day: Date) -> String {
+        let eventStart: Date = event.startDate
+        return DateMath.timeFormatter.string(from: max(eventStart, DateMath.startOfDay(day)))
+    }
 }

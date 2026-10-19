@@ -210,7 +210,7 @@ struct DayView: View {
     }
 
     private func timeRangeText(for event: EKEvent) -> String {
-        "\(DateMath.timeFormatter.string(from: event.startDate)) – \(DateMath.timeFormatter.string(from: event.endDate))"
+        EventDayGrouping.timeRangeText(of: event, on: date)
     }
 
     private func layout(for event: EKEvent, width: CGFloat) -> (x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat) {

@@ -69,7 +69,8 @@ struct CalendarSidebarView: View {
                                     event: event,
                                     completed: EventCompletionAccess.isCompleted(event, in: completionRows),
                                     onToggleComplete: { onToggleComplete(event) },
-                                    onDelete: { onDelete(event) }
+                                    onDelete: { onDelete(event) },
+                                    day: selectedDate
                                 )
                                 .contentShape(Rectangle())
                                 .onTapGesture { onEditEvent(event) }

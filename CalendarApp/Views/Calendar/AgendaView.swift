@@ -45,7 +45,8 @@ struct AgendaView: View {
                                 event: event,
                                 completed: EventCompletionAccess.isCompleted(event, in: completionRows),
                                 onToggleComplete: { EventCompletionAccess.toggle(event, in: completionRows, context: modelContext) },
-                                onDelete: { eventStore.deleteWithUndo(event, undoManager: undoManager) }
+                                onDelete: { eventStore.deleteWithUndo(event, undoManager: undoManager) },
+                                day: group.day
                             )
                             .contentShape(Rectangle())
                             .onTapGesture { onSelectEvent(event) }

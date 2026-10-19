@@ -27,6 +27,9 @@ struct CalendarRootView: View {
     @State private var showingCalendarList = false
     @State private var eventEditorContext: EventEditorContext?
     @State private var showingQuickAdd = false
+    @State private var showingVoice = false
+    /// Set when the voice sheet hands off to the editor; presented once it has closed.
+    @State private var draftForEditor: EventDraft?
     /// Wide (Mac/iPad) layout only: the event a single-click on Month/Day
     /// most recently previewed, shown in the sidebar until the user picks a
     /// different day or event.
@@ -87,6 +90,9 @@ struct CalendarRootView: View {
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
+                    voiceButton
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showingQuickAdd = true
                     } label: {
@@ -142,6 +148,49 @@ struct CalendarRootView: View {
         .sheet(isPresented: $showingQuickAdd) {
             QuickAddTemplatesView(targetDate: defaultNewEventDate)
         }
+        #if !targetEnvironment(macCatalyst)
+        // Phone: a compact bottom panel, so the calendar stays visible above it.
+        .sheet(isPresented: $showingVoice) { voicePanel }
+        #endif
+        .onChange(of: showingVoice) {
+            // Two sheets can't be up at once, so the editor waits for this one.
+            if !showingVoice, let draft = draftForEditor {
+                draftForEditor = nil
+                eventEditorContext = .draft(draft)
+            }
+        }
+    }
+
+    private var voiceButton: some View {
+        let button = Button {
+            showingVoice = true
+        } label: {
+            Image(systemName: "mic.fill")
+        }
+        .accessibilityLabel("Add or Delete by Voice")
+        #if targetEnvironment(macCatalyst)
+        // Mac: a popover next to the button, not a modal sheet over the window.
+        return button
+            .help("Add or delete events by voice")
+            .popover(isPresented: $showingVoice, arrowEdge: .top) {
+                voicePanel.frame(width: 400, height: 560)
+            }
+        #else
+        return button
+        #endif
+    }
+
+    private var voicePanel: some View {
+        VoiceEventView(
+            onEditManually: { draftForEditor = $0 },
+            onFocusDate: { date in
+                // Keep the calendar behind the panel on the day being discussed.
+                referenceDate = date
+                selectedDate = date
+                previewEvent = nil
+                monthJump += 1
+            }
+        )
     }
 
     @ViewBuilder

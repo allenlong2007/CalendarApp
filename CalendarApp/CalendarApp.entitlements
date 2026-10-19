@@ -35,5 +35,11 @@
 	-->
 	<key>com.apple.security.personal-information.calendars</key>
 	<true/>
+	<!--
+	Same story for the microphone (voice event entry): without this declared,
+	Mac Catalyst may never register the request with TCC.
+	-->
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
 </dict>
 </plist>

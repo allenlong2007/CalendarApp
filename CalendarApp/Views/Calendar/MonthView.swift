@@ -300,7 +300,8 @@ private struct MonthDayCellWide: View {
                 ForEach(events.prefix(maxVisibleChips), id: \.eventIdentifier) { event in
                     EventChip(
                         event: event,
-                        completed: EventCompletionAccess.isCompleted(event, in: completionRows)
+                        completed: EventCompletionAccess.isCompleted(event, in: completionRows),
+                        day: day
                     )
                     .onTapGesture(count: 2) { onEditEvent(event) }
                     .onTapGesture(count: 1) { onQuickLook(event) }
@@ -327,6 +328,9 @@ private struct MonthDayCellWide: View {
 private struct EventChip: View {
     let event: EKEvent
     let completed: Bool
+    /// The day this chip is drawn on -- an overnight event shows when it begins
+    /// *on that day*, not when it began the day before.
+    let day: Date
 
     private var status: EventStatus {
         EventStatusEvaluator.status(for: event, completed: completed)
@@ -341,7 +345,7 @@ private struct EventChip: View {
         // stack is infinitely tall and stretches every chip to fill its cell.
         HStack(spacing: 4) {
             if !event.isAllDay {
-                Text(DateMath.timeFormatter.string(from: event.startDate))
+                Text(EventDayGrouping.startText(of: event, on: day))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -429,7 +433,8 @@ private struct SelectedDayEventList: View {
                                 event: event,
                                 completed: EventCompletionAccess.isCompleted(event, in: completionRows),
                                 onToggleComplete: { onToggleComplete(event) },
-                                onDelete: { onDelete(event) }
+                                onDelete: { onDelete(event) },
+                                day: date
                             )
                             .contentShape(Rectangle())
                             .onTapGesture { onSelectEvent(event) }
@@ -462,6 +467,9 @@ struct EventRow: View {
     var completed: Bool = false
     var onToggleComplete: (() -> Void)?
     var onDelete: (() -> Void)?
+    /// The day this row is listed under, so an overnight event shows only that
+    /// day's hours. Nil shows the event's full range.
+    var day: Date?
 
     @Query private var locationOverrides: [EventLocationOverride]
 
@@ -522,6 +530,7 @@ struct EventRow: View {
     }
 
     private var timeLabel: String {
+        if let day { return EventDayGrouping.timeRangeText(of: event, on: day) }
         if event.isAllDay { return "All-day" }
         return "\(DateMath.timeFormatter.string(from: event.startDate)) – \(DateMath.timeFormatter.string(from: event.endDate))"
     }
