@@ -18,6 +18,7 @@ final class SpeechTranscriber {
     private(set) var errorMessage: String?
 
     /// Words the recognizer should be biased toward -- calendar names, places.
+    /// Used only for on-device recognition (see start()).
     var contextualStrings: [String] = []
     /// Called once a pause follows speech, or when stopped, with the final text.
     var onFinished: ((String) -> Void)?
@@ -81,8 +82,14 @@ final class SpeechTranscriber {
             let request = SFSpeechAudioBufferRecognitionRequest()
             request.shouldReportPartialResults = true
             request.addsPunctuation = false
-            request.contextualStrings = contextualStrings
-            if recognizer.supportsOnDeviceRecognition { request.requiresOnDeviceRecognition = true }
+            // Hints include place names from the user's calendar, so they're only
+            // given to the recognizer when it runs on the phone itself. If this
+            // device can't recognise on-device, the audio is handled by Apple's
+            // service (the system's normal dictation behavior) -- with no hints.
+            if recognizer.supportsOnDeviceRecognition {
+                request.requiresOnDeviceRecognition = true
+                request.contextualStrings = contextualStrings
+            }
             self.request = request
 
             Self.installTap(on: engine.inputNode, feeding: RequestBox(request))

@@ -93,9 +93,17 @@ struct VoiceEventParser {
     }
 
     private func extractLocation(_ text: inout String) -> String? {
+        // Prepositions stranded by an extracted time ("... at") aren't places.
+        text = text.replacingOccurrences(of: #"(?i)(?:\s+(?:at|on|from|in|by|for|to))+\s*$"#, with: "", options: .regularExpression)
         let stop = #"(?=\s+(?:on|from|for|every|category|calendar|remind|reminder|tomorrow|today|tonight|next|this|at \d)\b|[,.;]|$)"#
-        if let g = extract(#"\blocation\s+(?:is\s+|to\s+)?(.+?)"# + stop, from: &text) { return capitalized(trimArticle(g[1])) }
-        if let g = extract(#"\b(?:at|in|@)\s+(.+?)"# + stop, from: &text) { return capitalized(trimArticle(g[1])) }
+        if let g = extract(#"\blocation\s+(?:is\s+|to\s+)?(.+?)"# + stop, from: &text) {
+            let place = trimArticle(g[1])
+            return place.contains(where: \.isLetter) ? capitalized(place) : nil
+        }
+        if let g = extract(#"\b(?:at|in|@)\s+(.+?)"# + stop, from: &text) {
+            let place = trimArticle(g[1])
+            return place.contains(where: \.isLetter) ? capitalized(place) : nil
+        }
         return nil
     }
 
@@ -124,11 +132,13 @@ struct VoiceEventParser {
     private static let timeWords = #"(?i)\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b|\b\d{1,2}:\d{2}\b|\bo'?clock\b"#
 
     private func applyDateAndTime(_ text: inout String, to draft: inout EventDraft, duration: Int?, isCorrection: Bool, now: Date) {
-        let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue)
-        let matches = detector?.matches(in: text, range: NSRange(text.startIndex..., in: text)) ?? []
-        var foundDay: Date?, foundTime: DateComponents?, foundDuration: TimeInterval = 0
+        // Phrases the system detector can't read ("next week", "the 25th") first.
+        var foundDay: Date? = SpokenDateResolver(calendar: calendar).extractDay(&text, now: now)
+        var foundTime: DateComponents?, foundDuration: TimeInterval = 0
         var consumed: [Range<String.Index>] = []
 
+        let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue)
+        let matches = detector?.matches(in: text, range: NSRange(text.startIndex..., in: text)) ?? []
         for match in matches {
             guard let date = match.date, let range = Range(match.range, in: text) else { continue }
             let phrase = String(text[range])
@@ -142,7 +152,12 @@ struct VoiceEventParser {
             if hasDay || hasTime { consumed.append(range) }
             else if !hasDay && !hasTime { continue }
         }
-        for range in consumed.sorted(by: { $0.lowerBound > $1.lowerBound }) { text.replaceSubrange(range, with: " ") }
+        // The detector sometimes swallows ordinary words ("lunch" reads as a time of
+        // day); put back whatever in a matched phrase isn't date or time vocabulary.
+        for range in consumed.sorted(by: { $0.lowerBound > $1.lowerBound }) {
+            let kept = text[range].split(separator: " ").map(String.init).filter { !isDateWord($0) }.joined(separator: " ")
+            text.replaceSubrange(range, with: " \(kept) ")
+        }
 
         guard foundDay != nil || foundTime != nil || duration != nil else { return }
 
@@ -185,6 +200,13 @@ struct VoiceEventParser {
             draft.end = calendar.date(byAdding: .day, value: 1, to: draft.start ?? start)
             draft.timeKnown = true
         }
+    }
+
+    private static let dateVocabulary = #"(?i)^(?:\d{1,2}(?::\d{2})?(?:am|pm)?|am|pm|at|on|from|to|until|till|through|the|of|and|in|by|-|noon|midnight|morning|afternoon|evening|night|tonight|today|tomorrow|next|this|last|week|weekend|month|year|day|days|o'clock|(?:mon|tues?|wed(?:nes)?|thu(?:rs?)?|fri|sat(?:ur)?|sun)(?:day)?|\d{1,2}(?:st|nd|rd|th)|\d{1,2}/\d{1,2}(?:/\d{2,4})?|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)$"#
+
+    private func isDateWord(_ token: String) -> Bool {
+        let trimmed = token.trimmingCharacters(in: CharacterSet(charactersIn: ",.;"))
+        return trimmed.isEmpty || trimmed.range(of: Self.dateVocabulary, options: .regularExpression) != nil
     }
 
     // MARK: - Title cleanup

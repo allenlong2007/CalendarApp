@@ -100,7 +100,7 @@ struct VoiceEventView: View {
                 } else if speech.isListening {
                     Text(speech.transcript.isEmpty ? "Listening…" : "“\(speech.transcript)”")
                 } else if deleteQuery != nil {
-                    Text("Say “yes” to delete, or tap one below.")
+                    Text("Say “delete it”, or tap Delete below.")
                 } else if draft != nil {
                     Text("Say “yes” to add it, or a correction like “make it 7 pm”.")
                 } else {
@@ -310,8 +310,13 @@ struct VoiceEventView: View {
         errorMessage = nil
         switch VoiceIntentClassifier().classify(heard) {
         case .confirm:
+            if deleteQuery != nil {
+                // A generic "yes"/"ok" is not enough to delete something.
+                errorMessage = "To delete it, say “delete it” or tap Delete."
+            } else if let draft, draft.isComplete { create(draft) }
+        case .confirmDelete:
             if deleteQuery != nil, deleteCandidates.count == 1, let event = deleteCandidates.first { delete(event) }
-            else if deleteQuery == nil, let draft, draft.isComplete { create(draft) }
+            else if deleteQuery != nil, deleteCandidates.count > 1 { errorMessage = "More than one event matches — tap the one to delete." }
         case .cancel:
             if draft != nil || deleteQuery != nil { reset() } else { speech.cancel(); dismiss() }
         case .delete(let request):

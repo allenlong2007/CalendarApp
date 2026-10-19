@@ -6,6 +6,9 @@ import Foundation
 enum VoiceIntent: Equatable {
     case delete(VoiceDeleteRequest)
     case confirm
+    /// "delete it" / "yes delete" -- the only spoken way to confirm a deletion.
+    /// A generic "ok" or "sure" (easily said or misheard) never deletes.
+    case confirmDelete
     case cancel
     /// Anything else: details of an event to add, or a correction to the draft.
     case describeEvent
@@ -22,23 +25,24 @@ struct VoiceDeleteRequest: Equatable {
 struct VoiceIntentClassifier {
     var calendar: Calendar = .current
 
-    func classify(_ spoken: String) -> VoiceIntent {
+    func classify(_ spoken: String, now: Date = .now) -> VoiceIntent {
         let text = spoken.lowercased()
             .replacingOccurrences(of: #"[.!?,]"#, with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        if matches(#"^(?:yes|yeah|yep|yup|sure|confirm|do it|go ahead|looks good|that'?s right|correct|add it|save it|delete it|delete that|remove it|remove that|ok|okay)(?: please)?$"#, text) { return .confirm }
+        if matches(#"^(?:yes )?(?:delete|remove) (?:it|that|this)(?: please)?$"#, text) || matches(#"^yes,? (?:please )?(?:delete|remove)$"#, text) { return .confirmDelete }
+        if matches(#"^(?:yes|yeah|yep|yup|sure|confirm|do it|go ahead|looks good|that'?s right|correct|add it|save it|ok|okay)(?: please)?$"#, text) { return .confirm }
         if matches(#"^(?:no|nope|cancel|never ?mind|stop|don'?t|do not|forget it|keep it)(?: it| that)?$"#, text) { return .cancel }
 
         if let rest = capture(#"^(?:please\s+)?(?:delete|remove|cancel|erase|get rid of)\s+(?:the\s+|my\s+|that\s+)?(.+)$"#, in: text) {
-            return .delete(request(from: rest))
+            return .delete(request(from: rest, now: now))
         }
         return .describeEvent
     }
 
-    private func request(from rest: String) -> VoiceDeleteRequest {
+    private func request(from rest: String, now: Date) -> VoiceDeleteRequest {
         var text = rest
-        var day: Date?
+        var day: Date? = SpokenDateResolver(calendar: calendar).extractDay(&text, now: now)
         var hour: Int?
 
         let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue)
@@ -49,15 +53,16 @@ struct VoiceIntentClassifier {
             let hasDay = phrase.range(of: #"(?i)\b(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\b|\b(?:today|tomorrow|tonight|next|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b|\b\d{1,2}(?:st|nd|rd|th)\b|\b\d{1,2}/\d{1,2}\b"#, options: .regularExpression) != nil
             let hasTime = phrase.range(of: #"(?i)\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b|\b\d{1,2}:\d{2}\b"#, options: .regularExpression) != nil
             guard hasDay || hasTime else { continue }
-            if hasDay { day = calendar.startOfDay(for: date) }
+            if hasDay && day == nil { day = calendar.startOfDay(for: date) }
             if hasTime { hour = calendar.component(.hour, from: date) }
             text.replaceSubrange(range, with: " ")
         }
 
-        let stop: Set<String> = ["event", "events", "appointment", "on", "at", "for", "from", "my", "the", "a", "an", "all", "calendar", "of", "to", "in", "and", "it", "that", "this"]
+        let stop: Set<String> = ["event", "events", "appointment", "on", "at", "for", "from", "my", "the", "a", "an", "all", "calendar", "of", "to", "in", "and", "it", "that", "this",
+                                 "one", "ones", "thing", "things", "stuff", "something", "anything", "everything", "all", "every"]
         let words = text.split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "'" })
             .map { String($0) }
-            .filter { !stop.contains($0) }
+            .filter { !stop.contains($0) && $0.count >= 3 }   // 1-2 letter words match inside too many titles
         return VoiceDeleteRequest(titleWords: words, day: day, hour: hour)
     }
 
@@ -88,12 +93,13 @@ enum VoiceDeleteMatcher {
     static func matches(_ request: VoiceDeleteRequest, in events: [EventRef], now: Date = .now, calendar: Calendar = .current) -> [EventRef] {
         guard !request.titleWords.isEmpty else { return [] }
 
+        // Whole words, and every one of them: "practice" must not match inside
+        // another word, and a partial match is never good enough to delete on.
         let hits = events.filter { event in
-            let title = event.title.lowercased()
-            let present = request.titleWords.filter { title.contains($0) }.count
-            let enough = present == request.titleWords.count
-                || (request.titleWords.count >= 3 && Double(present) / Double(request.titleWords.count) >= 0.67)
-            guard enough else { return false }
+            let allPresent = request.titleWords.allSatisfy { word in
+                event.title.range(of: #"\b"# + NSRegularExpression.escapedPattern(for: word) + #"\b"#, options: [.regularExpression, .caseInsensitive]) != nil
+            }
+            guard allPresent else { return false }
             if let day = request.day, !calendar.isDate(event.start, inSameDayAs: day) { return false }
             if let hour = request.hour {
                 let eventHour = calendar.component(.hour, from: event.start)

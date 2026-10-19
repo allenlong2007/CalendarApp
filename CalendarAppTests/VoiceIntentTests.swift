@@ -8,13 +8,15 @@ struct VoiceIntentTests {
 
     @Test func recognisesDeleteWithNameAndDay() {
         guard case .delete(let request) = classifier.classify("Delete the speak up meeting on Thursday") else { Issue.record("not a delete"); return }
-        #expect(request.titleWords == ["speak", "up", "meeting"])
+        #expect(request.titleWords == ["speak", "meeting"])
         #expect(request.day.map { cal.component(.weekday, from: $0) } == 5)
     }
 
     @Test func confirmAndCancelAreRecognised() {
         #expect(classifier.classify("yes") == .confirm)
-        #expect(classifier.classify("delete it") == .confirm)
+        #expect(classifier.classify("ok") == .confirm)
+        #expect(classifier.classify("delete it") == .confirmDelete)
+        #expect(classifier.classify("yes delete it") == .confirmDelete)
         #expect(classifier.classify("never mind") == .cancel)
         #expect(classifier.classify("cancel") == .cancel)
     }
@@ -43,5 +45,9 @@ struct VoiceIntentTests {
         #expect(byName.map(\.id) == ["soon", "past"])
         let dayOnly = VoiceDeleteMatcher.matches(VoiceDeleteRequest(titleWords: [], day: day(1, 0), hour: nil), in: events, now: now)
         #expect(dayOnly.isEmpty)
+        // Whole words only, and all of them.
+        let practiceInsideAnotherWord = [EventRef(id: "x", title: "Malpractice review", start: day(1, 10))]
+        #expect(VoiceDeleteMatcher.matches(VoiceDeleteRequest(titleWords: ["practice"], day: nil, hour: nil), in: practiceInsideAnotherWord, now: now).isEmpty)
+        #expect(VoiceDeleteMatcher.matches(VoiceDeleteRequest(titleWords: ["pickleball", "tryouts", "finals"], day: nil, hour: nil), in: events, now: now).isEmpty)
     }
 }

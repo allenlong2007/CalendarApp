@@ -77,3 +77,64 @@ struct VoiceEventParserTests {
         #expect(d.location == "Gym")
     }
 }
+
+struct SpokenDateTests {
+    private let parser = VoiceEventParser(calendarTitles: ["Exercise"])
+    private let cal = Calendar.current
+
+    private func startOfWeek(_ date: Date) -> Date { cal.dateInterval(of: .weekOfYear, for: date)!.start }
+
+    @Test func thursdayNextWeek() {
+        let d = parser.parse("dentist Thursday next week at 2pm")
+        #expect(d.title == "Dentist")
+        let start = d.start!
+        #expect(cal.component(.weekday, from: start) == 5)
+        #expect(startOfWeek(start) == cal.date(byAdding: .day, value: 7, to: startOfWeek(.now)))
+        #expect(cal.component(.hour, from: start) == 14)
+    }
+
+    @Test func thisWeekWithAWeekday() {
+        let d = parser.parse("gym this week Wednesday at 9am")
+        #expect(cal.component(.weekday, from: d.start!) == 4)
+        #expect(startOfWeek(d.start!) == startOfWeek(.now))
+    }
+
+    @Test func bareNextWeekIsSevenDaysOut() {
+        let d = parser.parse("lunch next week")
+        #expect(cal.isDate(d.start!, inSameDayAs: cal.date(byAdding: .day, value: 7, to: .now)!))
+        #expect(d.gaps == [.time])
+    }
+
+    @Test func inTwoWeeksAndTheDayAfterTomorrow() {
+        let weeks = parser.parse("meeting in two weeks at 3 pm")
+        #expect(cal.isDate(weeks.start!, inSameDayAs: cal.date(byAdding: .day, value: 14, to: .now)!))
+        let after = parser.parse("call mom the day after tomorrow at noon")
+        #expect(cal.isDate(after.start!, inSameDayAs: cal.date(byAdding: .day, value: 2, to: .now)!))
+        #expect(cal.component(.hour, from: after.start!) == 12)
+    }
+
+    @Test func theTwentyFifthIsTheNextTwentyFifth() {
+        let d = parser.parse("project due the 25th at 5 pm")
+        let start = d.start!
+        #expect(cal.component(.day, from: start) == 25)
+        #expect(start >= cal.startOfDay(for: .now))
+        #expect(d.title == "Project Due")
+    }
+
+    @Test func weekendsResolveToSaturday() {
+        let d = parser.parse("hike next weekend at 8 am")
+        #expect(cal.component(.weekday, from: d.start!) == 7)
+        #expect(d.start! > cal.date(byAdding: .day, value: 6, to: .now)!)
+    }
+
+    @Test func wordsTheDetectorSwallowsStayInTheTitle() {
+        #expect(parser.parse("team lunch 10/28 at 12:30 pm").title == "Team Lunch")
+    }
+
+    @Test func deleteUnderstandsTheSamePhrases() {
+        guard case .delete(let request) = VoiceIntentClassifier().classify("delete the speak up meeting Thursday next week") else { Issue.record("not a delete"); return }
+        #expect(request.titleWords == ["speak", "meeting"])
+        #expect(request.day.map { cal.component(.weekday, from: $0) } == 5)
+        #expect(request.day.map { startOfWeek($0) } == cal.date(byAdding: .day, value: 7, to: startOfWeek(.now)))
+    }
+}

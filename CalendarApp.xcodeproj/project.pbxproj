@@ -62,6 +62,7 @@
 		7E0971778CDF50579B63DA17 /* Motion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26BFEE45EB920EDA9B58A107 /* Motion.swift */; };
 		7F9CFC609CDCD347E9A83A6A /* EventCompletionAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33525A12008EB866ACDDEE1E /* EventCompletionAccess.swift */; };
 		803D4FDA8CC415C3E0032124 /* SyncReconcilerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37143EC6E314976E2157C3B1 /* SyncReconcilerTests.swift */; };
+		884DC58EF39C5EBAE539C9B9 /* SpokenDate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6F11B02111A7736EEC9E6A5 /* SpokenDate.swift */; };
 		89A539748C380AC7A2EF359F /* EventLocationAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05CD0868F696B0E5FD427D89 /* EventLocationAccess.swift */; };
 		961536C43B82540806378DFF /* CalendarAppTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 630BE18CDE9EA805082EAE19 /* CalendarAppTests.swift */; };
 		972451A267763A63C03A52AE /* CompletionMirrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F637A68E150FA806DA9F955 /* CompletionMirrorTests.swift */; };
@@ -215,6 +216,7 @@
 		E0D9CF308E639D59B20A5A03 /* EventDayGrouping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventDayGrouping.swift; sourceTree = "<group>"; };
 		E1D99E85E255155ED446DBBD /* AgendaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaView.swift; sourceTree = "<group>"; };
 		E2E26DC681D27448D99C5DD6 /* ModelContainerFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelContainerFactory.swift; sourceTree = "<group>"; };
+		E6F11B02111A7736EEC9E6A5 /* SpokenDate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpokenDate.swift; sourceTree = "<group>"; };
 		E86B55126AD1BAADA3462088 /* CalendarAppWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CalendarAppWidgets.entitlements; sourceTree = "<group>"; };
 		EB433682AC53F50711B5A4E6 /* EventStoreManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventStoreManager.swift; sourceTree = "<group>"; };
 		ECD20626DA7755E8CB2F6811 /* EventReminderPreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventReminderPreference.swift; sourceTree = "<group>"; };
@@ -435,6 +437,7 @@
 			children = (
 				CED8EFB094B57EA9E755E8B9 /* EventDraft.swift */,
 				A9B122F5D0AD0666A3AAFB11 /* SpeechTranscriber.swift */,
+				E6F11B02111A7736EEC9E6A5 /* SpokenDate.swift */,
 				2B3D641C4D925CAEA8E935DF /* VoiceEventParser.swift */,
 				F189C48ED2613E64A0D2FCDD /* VoiceEventView.swift */,
 				BFA197C0A956DF3012C06EAC /* VoiceIntent.swift */,
@@ -712,6 +715,7 @@
 				5E4F0820ADE5E425C8DB470B /* RootTabView.swift in Sources */,
 				6F324DEFB21EC2F47EC98123 /* SavedAddress.swift in Sources */,
 				148C32BAB1F61BE0B74D7E32 /* SpeechTranscriber.swift in Sources */,
+				884DC58EF39C5EBAE539C9B9 /* SpokenDate.swift in Sources */,
 				29E7DB438B12BE6DFD5A8EDB /* SyncAdapters.swift in Sources */,
 				D80F771585894DF5ADAAB516 /* SyncCoordinator.swift in Sources */,
 				D8CFBB9D5F917185C0625A6D /* SyncReconciler.swift in Sources */,
