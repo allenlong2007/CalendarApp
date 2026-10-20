@@ -59,6 +59,9 @@ struct RepeatRule: Equatable {
     var until: Date?
     /// Or: stop after this many events.
     var count: Int?
+    /// "the next 3 weeks": kept so it can be measured from the first copy.
+    var spanCount: Int?
+    var spanUnit: String?
 
     static let maxEvents = 120
 

@@ -28,6 +28,8 @@ struct VoiceEventView: View {
     @State private var deleteQuery: String?
     /// "Delete all ...": many events, so it takes an explicit, counted confirmation.
     @State private var deleteIsMass = false
+    /// Set when the draft is a copy of an existing event ("Copying ...").
+    @State private var copyNote: String?
     @State private var confirmingMassDelete = false
     @State private var lastHeard = ""
     @State private var typed = ""
@@ -140,6 +142,8 @@ struct VoiceEventView: View {
                 .font(.footnote).foregroundStyle(.secondary)
             Text("“Add study session every Friday at 4 pm for the rest of the quarter.”")
                 .font(.footnote).foregroundStyle(.secondary)
+            Text("“Duplicate the Speak Up meeting every Thursday for the rest of the quarter.”")
+                .font(.footnote).foregroundStyle(.secondary)
             Text("“Delete pickleball practice on Thursday” or “delete all pickleball practice.”")
                 .font(.footnote).foregroundStyle(.secondary)
         }
@@ -168,6 +172,9 @@ struct VoiceEventView: View {
             if !lastHeard.isEmpty {
                 Text("I heard: “\(lastHeard)”").font(.footnote).foregroundStyle(.secondary)
             }
+            if let copyNote {
+                Label(copyNote, systemImage: "doc.on.doc").font(.footnote.weight(.medium))
+            }
 
             VStack(alignment: .leading, spacing: 10) {
                 row("Event", draft.title.isEmpty ? nil : draft.title, missing: "Say a title")
@@ -178,7 +185,13 @@ struct VoiceEventView: View {
                 row("Reminder", reminderText(for: draft), missing: "Default (15 min before)", optional: true)
                 if let rule = draft.repeatRule {
                     row("Repeats", repeatText(for: draft, rule: rule), missing: "Say how long")
-                    let dates = draft.occurrences()
+                    let plan = datesToCreate(draft)
+                    let dates = plan.dates
+                    if plan.alreadyThere > 0 {
+                        Text(dates.isEmpty ? "Every one of these dates already has this event."
+                                           : "\(plan.alreadyThere) of these dates already have this event and will be skipped.")
+                            .font(.footnote).foregroundStyle(.orange)
+                    }
                     if !dates.isEmpty {
                         DisclosureGroup("See the \(dates.count) dates") {
                             Text(dates.map { DateMath.monthDayFormatter.string(from: $0) }.joined(separator: " · "))
@@ -209,7 +222,7 @@ struct VoiceEventView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(AppTheme.ultramarine)
-            .disabled(!draft.isComplete)
+            .disabled(!draft.isComplete || (draft.repeatRule != nil && datesToCreate(draft).dates.isEmpty))
 
             HStack(spacing: 12) {
                 Button {
@@ -333,6 +346,10 @@ struct VoiceEventView: View {
         }
     }
 
+    private func whenTimes(_ event: EKEvent) -> String {
+        event.isAllDay ? "all-day" : "\(DateMath.timeFormatter.string(from: event.startDate)) – \(DateMath.timeFormatter.string(from: event.endDate))"
+    }
+
     private func whenText(for event: EKEvent) -> String {
         let day = DateMath.fullDateFormatter.string(from: event.startDate)
         if event.isAllDay { return "\(day) · All-day" }
@@ -349,9 +366,24 @@ struct VoiceEventView: View {
         return DateMath.timeFormatter.string(from: start) + end
     }
 
+    /// The dates that will actually be created: a repeat never adds an event that
+    /// is already there (same title, same start), so copying over a stretch that is
+    /// partly filled in doesn't double anything up.
+    private func datesToCreate(_ draft: EventDraft) -> (dates: [Date], alreadyThere: Int) {
+        let all = draft.occurrences()
+        guard draft.repeatRule != nil, let first = all.first, let last = all.last else { return (all, 0) }
+        let calendar = Calendar.current
+        let end = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: last)) ?? last
+        let existing = eventStore.events(from: calendar.startOfDay(for: first), to: end, in: writableCalendars)
+        let keys = Set(existing.map { "\(($0.title ?? "").lowercased())|\(Int($0.startDate.timeIntervalSince1970))" })
+        let title = draft.title.lowercased()
+        let fresh = all.filter { !keys.contains("\(title)|\(Int($0.timeIntervalSince1970))") }
+        return (fresh, all.count - fresh.count)
+    }
+
     private func addButtonTitle(for draft: EventDraft) -> String {
         guard draft.repeatRule != nil else { return "Add to Calendar" }
-        let count = draft.occurrences().count
+        let count = datesToCreate(draft).dates.count
         return count == 1 ? "Add 1 Event" : "Add \(count) Events"
     }
 
@@ -390,6 +422,7 @@ struct VoiceEventView: View {
         deleteQuery = nil
         deleteCandidates = []
         deleteIsMass = false
+        copyNote = nil
         lastHeard = ""
         errorMessage = nil
     }
@@ -420,7 +453,24 @@ struct VoiceEventView: View {
             if request.rangeUnresolved { errorMessage = "I don't know when the quarter ends. Say an end date instead, like “until December 4th”." }
             else if request.titleWords.isEmpty { errorMessage = "Say which event to delete, by name." }
             if let first = deleteCandidates.first { onFocusDate(first.startDate) }
+        case .duplicate(let rest):
+            deleteQuery = nil; deleteCandidates = []; deleteIsMass = false
+            let words = parser.duplicateTitleWords(from: rest)
+            guard !words.isEmpty, let source = findEvents(for: VoiceDeleteRequest(titleWords: words)).first else {
+                draft = nil; copyNote = nil
+                errorMessage = "I couldn't find an event to copy. Say its name, like “duplicate the Speak Up meeting every Thursday for the rest of the quarter”."
+                return
+            }
+            let location = EventLocationAccess.displayLocation(for: source, in: locationOverrides)?.text ?? source.location
+            let copy = DuplicateSource(
+                title: source.title ?? "", start: source.startDate, end: source.endDate, isAllDay: source.isAllDay,
+                calendarTitle: source.calendar?.title, location: location, notes: source.notes
+            )
+            draft = parser.duplicate(copy, saying: rest)
+            copyNote = "Copying “\(copy.title)” (\(DateMath.monthDayFormatter.string(from: copy.start)), \(whenTimes(source)))"
+            if let start = draft?.start { onFocusDate(start) }
         case .describeEvent:
+            copyNote = nil
             // A new description while a delete was pending abandons it.
             if deleteQuery != nil { deleteQuery = nil; deleteCandidates = []; deleteIsMass = false }
             draft = parser.parse(heard, applying: draft)
@@ -467,7 +517,7 @@ struct VoiceEventView: View {
             ?? writableCalendars.first
         guard let calendar else { errorMessage = "No calendar to add this to."; return }
         let length = draft.end.map { $0.timeIntervalSince(start) } ?? 3600
-        let starts = draft.occurrences()
+        let starts = draft.repeatRule != nil ? datesToCreate(draft).dates : draft.occurrences()
         guard !starts.isEmpty else { errorMessage = "No dates to add."; return }
         do {
             var created: [EKEvent] = []

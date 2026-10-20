@@ -232,6 +232,7 @@ struct VoiceEventParser {
             if let count = end.count { rule.count = count; rule.until = nil }
             else if let n = end.spanCount, let unit = end.spanUnit, let start = draft.start {
                 rule.until = ranger.lastDay(forSpan: n, unit: unit, startingOn: start); rule.count = nil
+                rule.spanCount = n; rule.spanUnit = unit
             } else if let until = end.until { rule.until = until; rule.count = nil }
         }
         draft.repeatRule = rule
@@ -359,5 +360,88 @@ struct VoiceEventParser {
         if u.hasPrefix("h") { return 60 }
         if u.hasPrefix("d") { return 1440 }
         return 1
+    }
+}
+
+/// An existing event, as much as is needed to copy it.
+struct DuplicateSource: Equatable {
+    var title: String
+    var start: Date
+    var end: Date
+    var isAllDay: Bool
+    var calendarTitle: String?
+    var location: String?
+    var notes: String?
+}
+
+extension VoiceEventParser {
+    /// The words in a "duplicate ..." request that name the event -- what's left
+    /// once repeats, ranges and filler like "same time" are taken out.
+    func duplicateTitleWords(from rest: String, now: Date = .now) -> [String] {
+        let words = parseDuplicateRequest(rest, now: now).title
+        let stop: Set<String> = ["event", "events", "appointment", "the", "my", "a", "an", "to", "of", "and", "for", "on", "at"]
+        return words.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            .map(String.init).filter { !stop.contains($0) && $0.count >= 2 }
+    }
+
+    /// "same time, same everything else" says nothing new; it must not end up in a title.
+    static func withoutFiller(_ text: String) -> String {
+        var s = text
+        for pattern in [
+            #"(?i)\b(?:and |with |at )?(?:the )?same (?:time|place|location|category|calendar|details|settings|length|duration|everything(?: else)?|as (?:before|that|it|the original))\b"#,
+            #"(?i)\b(?:and )?everything else\b"#,
+        ] {
+            while s.range(of: pattern, options: .regularExpression) != nil {
+                s = s.replacingOccurrences(of: pattern, with: " ", options: .regularExpression)
+            }
+        }
+        return s
+    }
+
+    /// The draft for copying `source` as described in `rest` ("every Thursday for
+    /// the rest of the quarter"). Everything about the event comes from the source;
+    /// only the days come from what was said. The first copy lands on the first
+    /// matching day AFTER the original, so the original isn't duplicated onto itself.
+    func duplicate(_ source: DuplicateSource, saying rest: String, now: Date = .now) -> EventDraft {
+        var draft = parseDuplicateRequest(rest, now: now)
+        var rule = draft.repeatRule ?? RepeatRule()   // "duplicate ... for the rest of the quarter" = weekly
+
+        draft.title = source.title
+        draft.calendarTitle = source.calendarTitle
+        draft.location = source.location
+        draft.notes = source.notes
+        draft.isAllDay = source.isAllDay
+        draft.timeKnown = true
+        let length = source.end.timeIntervalSince(source.start)
+        let time = calendar.dateComponents([.hour, .minute], from: source.start)
+        let sourceWeekday = calendar.component(.weekday, from: source.start)
+
+        let today = calendar.startOfDay(for: now)
+        let dayAfterSource = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: source.start)) ?? today
+        let base = max(today, dayAfterSource)
+        var first = base
+        for offset in 0..<14 {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: base) else { break }
+            if rule.matches(weekday: calendar.component(.weekday, from: day), firstWeekday: sourceWeekday) { first = day; break }
+        }
+        let start = source.isAllDay ? first : (calendar.date(bySettingHour: time.hour ?? 0, minute: time.minute ?? 0, second: 0, of: first) ?? first)
+        draft.start = start
+        draft.end = start.addingTimeInterval(length)
+
+        // "for the next 3 weeks" counts from the first copy, not from when it was said.
+        if let n = rule.spanCount, let unit = rule.spanUnit {
+            rule.until = SpokenRangeResolver(calendar: calendar, quarterEnd: quarterEnd).lastDay(forSpan: n, unit: unit, startingOn: first)
+        }
+        draft.repeatRule = rule
+        return draft
+    }
+
+    /// Reads the repeat/range part of a duplicate request. Without a weekday
+    /// ("... for the rest of the quarter") it's read as weekly, so the range
+    /// phrase is still understood and kept out of the title.
+    private func parseDuplicateRequest(_ rest: String, now: Date) -> EventDraft {
+        let text = Self.withoutFiller(rest)
+        let draft = parse(text, now: now)
+        return draft.repeatRule == nil ? parse(text + " weekly", now: now) : draft
     }
 }

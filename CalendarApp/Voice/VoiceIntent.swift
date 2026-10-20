@@ -9,6 +9,9 @@ enum VoiceIntent: Equatable {
     /// "delete it" / "yes delete" -- the only spoken way to confirm a deletion.
     /// A generic "ok" or "sure" (easily said or misheard) never deletes.
     case confirmDelete
+    /// "duplicate the speak up meeting every Thursday for the rest of the quarter":
+    /// copy an existing event. Carries what was said after the verb.
+    case duplicate(String)
     case cancel
     /// Anything else: details of an event to add, or a correction to the draft.
     case describeEvent
@@ -46,6 +49,12 @@ struct VoiceIntentClassifier {
         if matches(#"^(?:yes|yeah|yep|yup|sure|confirm|do it|go ahead|looks good|that'?s right|correct|add it|save it|ok|okay)(?: please)?$"#, text) { return .confirm }
         if matches(#"^(?:no|nope|cancel|never ?mind|stop|don'?t|do not|forget it|keep it)(?: it| that)?$"#, text) { return .cancel }
 
+        if matches(#"^(?:please\s+)?(?:duplicate|copy|clone|replicate)\s+(?!(?:it|that|this|them)\b)\S"#, text) {
+            // Re-read from the original wording (casing matters for the title).
+            let original = spoken.trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: #"(?i)^(?:please\s+)?(?:duplicate|copy|clone|replicate)\s+(?:the\s+|my\s+)?"#, with: "", options: .regularExpression)
+            return .duplicate(original)
+        }
         if let rest = capture(#"^(?:please\s+)?(?:delete|remove|cancel|erase|get rid of)\s+(?:the\s+|my\s+|that\s+)?(.+)$"#, in: text) {
             return .delete(request(from: rest, now: now))
         }

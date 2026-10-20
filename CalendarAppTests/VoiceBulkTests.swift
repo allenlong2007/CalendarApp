@@ -98,3 +98,54 @@ struct VoiceBulkTests {
         #expect(VoiceIntentClassifier().classify("ok") == .confirm)
     }
 }
+
+struct VoiceDuplicateTests {
+    private let cal = Calendar.current
+    private var quarterEnd: Date { cal.date(byAdding: .day, value: 49, to: cal.startOfDay(for: .now))! }
+    private var parser: VoiceEventParser { VoiceEventParser(calendarTitles: ["Tech"], quarterEnd: quarterEnd) }
+
+    private func source() -> DuplicateSource {
+        var day = cal.startOfDay(for: .now)
+        while cal.component(.weekday, from: day) != 5 { day = cal.date(byAdding: .day, value: 1, to: day)! }   // a Thursday
+        return DuplicateSource(
+            title: "Speak Up meeting",
+            start: cal.date(bySettingHour: 14, minute: 0, second: 0, of: day)!,
+            end: cal.date(bySettingHour: 15, minute: 0, second: 0, of: day)!,
+            isAllDay: false, calendarTitle: "Tech", location: "Center Hall", notes: nil)
+    }
+
+    @Test func duplicateIsAnIntentNotATitle() {
+        guard case .duplicate(let rest) = VoiceIntentClassifier(quarterEnd: quarterEnd).classify("Duplicate the Speak Up meeting to every Thursday same time same everything else for the rest of the quarter") else {
+            Issue.record("not a duplicate"); return
+        }
+        #expect(parser.duplicateTitleWords(from: rest) == ["speak", "up", "meeting"])
+    }
+
+    @Test func copyKeepsEverythingAndStartsAfterTheOriginal() {
+        let original = source()
+        let rest = "the Speak Up meeting to every Thursday same time same everything else for the rest of the quarter"
+        let draft = parser.duplicate(original, saying: rest)
+        #expect(draft.title == "Speak Up meeting")           // never "Duplicate ..."
+        #expect(draft.calendarTitle == "Tech")
+        #expect(draft.location == "Center Hall")
+        let dates = draft.occurrences()
+        #expect(!dates.isEmpty)
+        #expect(dates.allSatisfy { cal.component(.weekday, from: $0) == 5 && cal.component(.hour, from: $0) == 14 })
+        #expect(dates.first! > original.start)
+        #expect(draft.durationMinutes == 60)
+        #expect(draft.isComplete)
+    }
+
+    @Test func weekdayIsOptionalAndSpansCountFromTheFirstCopy() {
+        let original = source()
+        let weekly = parser.duplicate(original, saying: "speak up meeting for the rest of the quarter")
+        #expect(weekly.isComplete)
+        #expect(weekly.occurrences().allSatisfy { cal.component(.weekday, from: $0) == 5 })
+        let three = parser.duplicate(original, saying: "speak up meeting every Thursday for the next 3 weeks")
+        #expect(three.occurrences().count == 3)
+    }
+
+    @Test func plainCopyOfItOrThatIsNotADuplicateRequest() {
+        #expect(VoiceIntentClassifier().classify("duplicate it") == .describeEvent)
+    }
+}
