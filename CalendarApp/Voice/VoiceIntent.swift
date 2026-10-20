@@ -20,17 +20,29 @@ struct VoiceDeleteRequest: Equatable {
     var day: Date?
     /// Hour of day (0-23) if a time was spoken.
     var hour: Int?
+    /// "Delete all pickleball practice ...": every matching event in the range,
+    /// not just the best match. Still requires title words and confirmation.
+    var isAll = false
+    /// The stretch to delete in (inclusive days). Open-ended defaults to upcoming only.
+    var rangeStart: Date?
+    var rangeEnd: Date?
+    /// "every Thursday": only events on these weekdays (Calendar numbering).
+    var weekdays: [Int] = []
+    /// A range was spoken but its end isn't known ("the rest of the quarter"
+    /// when the app can't tell when that is) -- better to match nothing than guess.
+    var rangeUnresolved = false
 }
 
 struct VoiceIntentClassifier {
     var calendar: Calendar = .current
+    var quarterEnd: Date?
 
     func classify(_ spoken: String, now: Date = .now) -> VoiceIntent {
         let text = spoken.lowercased()
             .replacingOccurrences(of: #"[.!?,]"#, with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        if matches(#"^(?:yes )?(?:delete|remove) (?:it|that|this)(?: please)?$"#, text) || matches(#"^yes,? (?:please )?(?:delete|remove)$"#, text) { return .confirmDelete }
+        if matches(#"^(?:yes )?(?:delete|remove) (?:it|that|this|them|all|all of them|all of those|everything)(?: please)?$"#, text) || matches(#"^yes,? (?:please )?(?:delete|remove)$"#, text) { return .confirmDelete }
         if matches(#"^(?:yes|yeah|yep|yup|sure|confirm|do it|go ahead|looks good|that'?s right|correct|add it|save it|ok|okay)(?: please)?$"#, text) { return .confirm }
         if matches(#"^(?:no|nope|cancel|never ?mind|stop|don'?t|do not|forget it|keep it)(?: it| that)?$"#, text) { return .cancel }
 
@@ -42,6 +54,27 @@ struct VoiceIntentClassifier {
 
     private func request(from rest: String, now: Date) -> VoiceDeleteRequest {
         var text = rest
+        var isAll = false
+        var weekdays: [Int] = []
+        var rangeStart: Date?, rangeEnd: Date?
+        var rangeUnresolved = false
+
+        // "all", "every Thursday", "Thursdays": a bulk request. These words are
+        // removed first so they aren't mistaken for a single day.
+        let names = "monday|mon|tuesday|tues|tue|wednesday|wed|thursday|thurs|thur|thu|friday|fri|saturday|sat|sunday|sun"
+        if let days = take(#"\b(?:(?:every|each)\s+((?:\#(names))s?(?:\s*(?:,|and|&)\s*(?:\#(names))s?)*)|((?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s))\b"#, from: &text) {
+            weekdays = weekdayNumbers(in: days)
+            isAll = true
+        }
+        if take(#"\b(?:all|every|each|everything)(?:\s+of)?(?:\s+(?:the|my))?\b"#, from: &text) != nil { isAll = true }
+        if isAll {
+            let ranger = SpokenRangeResolver(calendar: calendar, quarterEnd: quarterEnd)
+            if let end = ranger.extractEnd(&text, from: now, now: now) {
+                rangeStart = end.rangeStart
+                rangeEnd = end.until
+                rangeUnresolved = end.recognized && end.until == nil && end.count == nil
+            }
+        }
         var day: Date? = SpokenDateResolver(calendar: calendar).extractDay(&text, now: now)
         var hour: Int?
 
@@ -63,7 +96,26 @@ struct VoiceIntentClassifier {
         let words = text.split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "'" })
             .map { String($0) }
             .filter { !stop.contains($0) && $0.count >= 3 }   // 1-2 letter words match inside too many titles
-        return VoiceDeleteRequest(titleWords: words, day: day, hour: hour)
+        return VoiceDeleteRequest(titleWords: words, day: day, hour: hour, isAll: isAll, rangeStart: rangeStart, rangeEnd: rangeEnd, weekdays: weekdays, rangeUnresolved: rangeUnresolved)
+    }
+
+    /// Removes the first match from `text`; returns the first non-empty capture.
+    private func take(_ pattern: String, from text: inout String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let whole = Range(match.range, in: text) else { return nil }
+        var capture = ""
+        for index in 1..<max(match.numberOfRanges, 1) {
+            if let range = Range(match.range(at: index), in: text), capture.isEmpty { capture = String(text[range]) }
+        }
+        text.replaceSubrange(whole, with: " ")
+        return capture
+    }
+
+    private func weekdayNumbers(in text: String) -> [Int] {
+        let lower = text.lowercased()
+        return [("sun", 1), ("mon", 2), ("tue", 3), ("wed", 4), ("thu", 5), ("fri", 6), ("sat", 7)]
+            .filter { lower.range(of: #"\b"# + $0.0, options: .regularExpression) != nil }.map(\.1)
     }
 
     private func matches(_ pattern: String, _ text: String) -> Bool {
@@ -91,10 +143,15 @@ enum VoiceDeleteMatcher {
     /// then past ones most recent first. A request with no title words matches
     /// nothing -- "delete Thursday" must never offer a day's worth of events.
     static func matches(_ request: VoiceDeleteRequest, in events: [EventRef], now: Date = .now, calendar: Calendar = .current) -> [EventRef] {
-        guard !request.titleWords.isEmpty else { return [] }
+        guard !request.titleWords.isEmpty, !request.rangeUnresolved else { return [] }
 
         // Whole words, and every one of them: "practice" must not match inside
         // another word, and a partial match is never good enough to delete on.
+        let startOfToday = calendar.startOfDay(for: now)
+        let lower = request.rangeStart.map { calendar.startOfDay(for: $0) } ?? startOfToday
+        let upper = request.rangeEnd.flatMap { calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: $0)) }
+            ?? calendar.date(byAdding: .day, value: 365, to: lower) ?? lower
+
         let hits = events.filter { event in
             let allPresent = request.titleWords.allSatisfy { word in
                 event.title.range(of: #"\b"# + NSRegularExpression.escapedPattern(for: word) + #"\b"#, options: [.regularExpression, .caseInsensitive]) != nil
@@ -105,10 +162,15 @@ enum VoiceDeleteMatcher {
                 let eventHour = calendar.component(.hour, from: event.start)
                 if abs(eventHour - hour) > 1 { return false }
             }
+            if request.isAll {
+                guard event.start >= lower, event.start < upper else { return false }
+                if !request.weekdays.isEmpty, !request.weekdays.contains(calendar.component(.weekday, from: event.start)) { return false }
+            }
             return true
         }
 
-        let startOfToday = calendar.startOfDay(for: now)
+        // A bulk request returns everything in order; a single one, the few best.
+        if request.isAll { return Array(hits.sorted { $0.start < $1.start }.prefix(RepeatRule.maxEvents)) }
         let upcoming = hits.filter { $0.start >= startOfToday }.sorted { $0.start < $1.start }
         let past = hits.filter { $0.start < startOfToday }.sorted { $0.start > $1.start }
         return Array((upcoming + past).prefix(5))

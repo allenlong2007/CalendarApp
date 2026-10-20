@@ -17,11 +17,16 @@ struct EventDraft: Equatable {
     /// Minutes before the event; nil leaves the app's default reminder.
     var reminderMinutes: Int?
     var notes: String?
+    /// Set when it should be added on many days ("every Friday until Dec 4").
+    var repeatRule: RepeatRule?
+    /// Days left out of a repeat ("skip Thanksgiving").
+    var skipDates: [Date] = []
 
     enum Gap: String, CaseIterable {
         case title = "a title"
         case day = "a day"
         case time = "a time"
+        case repeatEnd = "how long to repeat (say “for the rest of the quarter” or “for 6 weeks”)"
     }
 
     /// What still has to be said (or typed) before the event can be created.
@@ -30,6 +35,7 @@ struct EventDraft: Equatable {
         if title.trimmingCharacters(in: .whitespaces).isEmpty { result.append(.title) }
         if start == nil { result.append(.day) }
         else if !timeKnown && !isAllDay { result.append(.time) }
+        if let rule = repeatRule, rule.until == nil, rule.count == nil { result.append(.repeatEnd) }
         return result
     }
 
@@ -38,5 +44,51 @@ struct EventDraft: Equatable {
     var durationMinutes: Int? {
         guard let start, let end, end > start else { return nil }
         return Int(end.timeIntervalSince(start) / 60)
+    }
+}
+
+/// How an event repeats when it's added in bulk. Each day becomes its own
+/// ordinary event (like the rest of this calendar), so any single one can be
+/// moved, completed or deleted without touching the others.
+struct RepeatRule: Equatable {
+    /// `Calendar` weekday numbers (1 = Sunday ... 7 = Saturday). Empty with
+    /// `everyDay` false means "weekly, on the first event's weekday".
+    var weekdays: [Int] = []
+    var everyDay = false
+    /// Last day to include.
+    var until: Date?
+    /// Or: stop after this many events.
+    var count: Int?
+
+    static let maxEvents = 120
+
+    func matches(weekday: Int, firstWeekday: Int) -> Bool {
+        if everyDay { return true }
+        return weekdays.isEmpty ? weekday == firstWeekday : weekdays.contains(weekday)
+    }
+}
+
+extension EventDraft {
+    /// The start of every event this draft will create (one, when it doesn't repeat).
+    func occurrences(calendar: Calendar = .current) -> [Date] {
+        guard let start else { return [] }
+        guard let rule = repeatRule else { return [start] }
+        let firstDay = calendar.startOfDay(for: start)
+        let firstWeekday = calendar.component(.weekday, from: start)
+        let time = calendar.dateComponents([.hour, .minute], from: start)
+        let skips = Set(skipDates.map { calendar.startOfDay(for: $0) })
+        let lastDay = rule.until.map { calendar.startOfDay(for: $0) }
+            ?? calendar.date(byAdding: .day, value: 400, to: firstDay) ?? firstDay
+        let limit = min(rule.count ?? RepeatRule.maxEvents, RepeatRule.maxEvents)
+
+        var result: [Date] = []
+        var day = firstDay
+        while day <= lastDay, result.count < limit {
+            if rule.matches(weekday: calendar.component(.weekday, from: day), firstWeekday: firstWeekday), !skips.contains(day) {
+                result.append(calendar.date(bySettingHour: time.hour ?? 0, minute: time.minute ?? 0, second: 0, of: day) ?? day)
+            }
+            day = calendar.date(byAdding: .day, value: 1, to: day) ?? lastDay.addingTimeInterval(86_400)
+        }
+        return result
     }
 }

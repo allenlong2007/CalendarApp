@@ -66,6 +66,13 @@ enum DateMath {
         return f
     }()
 
+    /// "Fri, Oct 23"
+    static let monthDayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "EEE, MMM d"
+        return f
+    }()
+
     static let dayNumberFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "d"

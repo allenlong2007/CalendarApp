@@ -28,6 +28,18 @@ expiry() {
         security cms -D -i "$f" 2>/dev/null | plutil -extract ExpirationDate raw -o - - 2>/dev/null && return
     done
 }
+# Runs a build, shows errors, and fails if it didn't succeed -- so a failed
+# build can never go on to "install" whatever stale app is left over.
+build_ok() {
+    local out
+    out=$(xcodebuild "$@" 2>&1)
+    echo "$out" | grep -E "error:|BUILD (SUCCEEDED|FAILED)"
+    if echo "$out" | grep -q "No Accounts"; then
+        echo "Xcode is signed out of your Apple ID. Open Xcode > Settings > Accounts, sign in, then run this again."
+    fi
+    echo "$out" | grep -q "BUILD SUCCEEDED"
+}
+
 products_dir() { xcodebuild -scheme "$SCHEME" -destination "$1" -showBuildSettings 2>/dev/null | awk -F' = ' '/^ *BUILT_PRODUCTS_DIR/ {print $2; exit}'; }
 
 step "Renewing signing profiles older than a day"
@@ -35,9 +47,10 @@ scripts/renew-stale-profiles.sh
 
 step "Mac: build"
 MAC_DEST='platform=macOS,variant=Mac Catalyst'
-xcodebuild -scheme "$SCHEME" -configuration Debug -destination "$MAC_DEST" -allowProvisioningUpdates build 2>&1 | grep -E "error:|BUILD (SUCCEEDED|FAILED)"
+MAC_BUILT=0
+build_ok -scheme "$SCHEME" -configuration Debug -destination "$MAC_DEST" -allowProvisioningUpdates build && MAC_BUILT=1
 MAC_APP="$(products_dir "$MAC_DEST")/$SCHEME.app"
-if [ -d "$MAC_APP" ]; then
+if [ "$MAC_BUILT" = 1 ] && [ -d "$MAC_APP" ]; then
     step "Mac: install and relaunch"
     killall CalendarApp 2>/dev/null; sleep 1
     rm -rf /Applications/CalendarApp.app && ditto "$MAC_APP" /Applications/CalendarApp.app && open /Applications/CalendarApp.app
@@ -69,7 +82,7 @@ echo "Found ${NAME//_/ } ($UDID)"
 
 step "iPhone: build"
 PHONE_DEST="id=$UDID"
-xcodebuild -scheme "$SCHEME" -configuration Debug -destination "$PHONE_DEST" -allowProvisioningUpdates build 2>&1 | grep -E "error:|BUILD (SUCCEEDED|FAILED)"
+build_ok -scheme "$SCHEME" -configuration Debug -destination "$PHONE_DEST" -allowProvisioningUpdates build || { echo "Phone build failed -- nothing was installed."; exit 1; }
 PHONE_APP="$(products_dir "$PHONE_DEST")/$SCHEME.app"
 [ -d "$PHONE_APP" ] || { echo "Phone build not found."; exit 1; }
 echo "Phone profile valid until: $(expiry "$PHONE_APP")  (UTC)"

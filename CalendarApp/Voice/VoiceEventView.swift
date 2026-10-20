@@ -26,15 +26,33 @@ struct VoiceEventView: View {
     /// Events a "delete ..." request matched, waiting for a yes.
     @State private var deleteCandidates: [EKEvent] = []
     @State private var deleteQuery: String?
+    /// "Delete all ...": many events, so it takes an explicit, counted confirmation.
+    @State private var deleteIsMass = false
+    @State private var confirmingMassDelete = false
     @State private var lastHeard = ""
     @State private var typed = ""
     @State private var errorMessage: String?
     @FocusState private var typing: Bool
 
     private static let panelHeight: CGFloat = 380
+    /// Above this many, a spoken "delete them" isn't enough -- it has to be tapped.
+    private static let voiceDeleteLimit = 30
 
     private var writableCalendars: [EKCalendar] { eventStore.calendars.filter(\.allowsContentModifications) }
-    private var parser: VoiceEventParser { VoiceEventParser(calendarTitles: writableCalendars.map(\.title)) }
+    private var parser: VoiceEventParser { VoiceEventParser(calendarTitles: writableCalendars.map(\.title), quarterEnd: quarterEnd) }
+    private var classifier: VoiceIntentClassifier { VoiceIntentClassifier(quarterEnd: quarterEnd) }
+
+    /// "The rest of the quarter" ends when the class schedule does: the last day
+    /// of the latest event in a calendar named like "FA26 Schedule". With no such
+    /// calendar it isn't known, and the app asks for an end date instead of guessing.
+    private var quarterEnd: Date? {
+        let schedules = eventStore.calendars.filter { $0.title.localizedCaseInsensitiveContains("schedule") }
+        guard !schedules.isEmpty else { return nil }
+        let now = Date.now
+        let horizon = Calendar.current.date(byAdding: .day, value: 250, to: now) ?? now
+        let ends = eventStore.events(from: now, to: horizon, in: schedules).map { $0.endDate as Date }
+        return ends.max().map { Calendar.current.startOfDay(for: $0.addingTimeInterval(-1)) }
+    }
 
     var body: some View {
         NavigationStack {
@@ -100,7 +118,7 @@ struct VoiceEventView: View {
                 } else if speech.isListening {
                     Text(speech.transcript.isEmpty ? "Listening…" : "“\(speech.transcript)”")
                 } else if deleteQuery != nil {
-                    Text("Say “delete it”, or tap Delete below.")
+                    Text(deleteIsMass ? "Say “delete them”, or tap Delete below." : "Say “delete it”, or tap Delete below.")
                 } else if draft != nil {
                     Text("Say “yes” to add it, or a correction like “make it 7 pm”.")
                 } else {
@@ -120,7 +138,9 @@ struct VoiceEventView: View {
             Text("Add or delete by voice").font(.headline)
             Text("“Pickleball practice Thursday at 6 pm at the Warren tennis courts, category exercise.”")
                 .font(.footnote).foregroundStyle(.secondary)
-            Text("“Delete pickleball practice on Thursday.”")
+            Text("“Add study session every Friday at 4 pm for the rest of the quarter.”")
+                .font(.footnote).foregroundStyle(.secondary)
+            Text("“Delete pickleball practice on Thursday” or “delete all pickleball practice.”")
                 .font(.footnote).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -156,6 +176,22 @@ struct VoiceEventView: View {
                 categoryRow(for: draft)
                 row("Location", draft.location, missing: "None", optional: true)
                 row("Reminder", reminderText(for: draft), missing: "Default (15 min before)", optional: true)
+                if let rule = draft.repeatRule {
+                    row("Repeats", repeatText(for: draft, rule: rule), missing: "Say how long")
+                    let dates = draft.occurrences()
+                    if !dates.isEmpty {
+                        DisclosureGroup("See the \(dates.count) dates") {
+                            Text(dates.map { DateMath.monthDayFormatter.string(from: $0) }.joined(separator: " · "))
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .font(.subheadline)
+                        if dates.count >= RepeatRule.maxEvents {
+                            Text("Limited to \(RepeatRule.maxEvents) events at a time.").font(.footnote).foregroundStyle(.orange)
+                        }
+                    }
+                }
             }
             .padding(14)
             .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.12)))
@@ -167,7 +203,7 @@ struct VoiceEventView: View {
             }
 
             Button(action: { create(draft) }) {
-                Label("Add to Calendar", systemImage: "checkmark.circle.fill")
+                Label(addButtonTitle(for: draft), systemImage: "checkmark.circle.fill")
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 6)
             }
@@ -228,9 +264,43 @@ struct VoiceEventView: View {
             }
 
             if deleteCandidates.isEmpty {
-                Label("I couldn't find an event matching that. Try the event's name, and a day if there are several.", systemImage: "magnifyingglass")
+                Label(errorMessage ?? "I couldn't find an event matching that. Try the event's name, and a day if there are several.", systemImage: "magnifyingglass")
                     .font(.subheadline)
                     .foregroundStyle(.orange)
+            } else if deleteIsMass {
+                let events = deleteCandidates
+                Text("Delete \(events.count) events?").font(.headline)
+                if let first = events.first, let last = events.last {
+                    Text("Upcoming, \(DateMath.monthDayFormatter.string(from: first.startDate)) – \(DateMath.monthDayFormatter.string(from: last.startDate)). Past events are never included.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(events.prefix(6), id: \.eventIdentifier) { event in
+                        HStack(spacing: 8) {
+                            Circle().fill(AppTheme.calendarColor(for: event.calendar)).frame(width: 8, height: 8)
+                            Text("\(event.title ?? "Untitled") · \(whenText(for: event))").font(.footnote).lineLimit(1)
+                        }
+                    }
+                    if events.count > 6 {
+                        Text("…and \(events.count - 6) more").font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.12)))
+                Button(role: .destructive) { confirmingMassDelete = true } label: {
+                    Label("Delete \(events.count) Events", systemImage: "trash").frame(maxWidth: .infinity).padding(.vertical, 6)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+                .confirmationDialog("Delete \(events.count) events?", isPresented: $confirmingMassDelete, titleVisibility: .visible) {
+                    Button("Delete \(events.count) Events", role: .destructive) { deleteAll() }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("You can undo this right after.")
+                }
+                Text(events.count <= Self.voiceDeleteLimit ? "Or say “delete them”." : "That's a lot — confirm by tapping.")
+                    .font(.footnote).foregroundStyle(.secondary)
             } else {
                 Text(deleteCandidates.count == 1 ? "Delete this event?" : "Which one should I delete?")
                     .font(.headline)
@@ -279,6 +349,25 @@ struct VoiceEventView: View {
         return DateMath.timeFormatter.string(from: start) + end
     }
 
+    private func addButtonTitle(for draft: EventDraft) -> String {
+        guard draft.repeatRule != nil else { return "Add to Calendar" }
+        let count = draft.occurrences().count
+        return count == 1 ? "Add 1 Event" : "Add \(count) Events"
+    }
+
+    private func repeatText(for draft: EventDraft, rule: RepeatRule) -> String? {
+        guard rule.until != nil || rule.count != nil else { return nil }
+        let symbols = Calendar.current.weekdaySymbols
+        let days: String
+        if rule.everyDay { days = "Every day" }
+        else if rule.weekdays == [2, 3, 4, 5, 6] { days = "Every weekday" }
+        else if rule.weekdays.isEmpty, let start = draft.start { days = "Every " + symbols[Calendar.current.component(.weekday, from: start) - 1] }
+        else { days = "Every " + rule.weekdays.sorted().map { symbols[$0 - 1] }.joined(separator: ", ") }
+        let skipped = draft.skipDates.isEmpty ? "" : " (skipping " + draft.skipDates.map { DateMath.monthDayFormatter.string(from: $0) }.joined(separator: ", ") + ")"
+        if let until = rule.until { return "\(days), through \(DateMath.monthDayFormatter.string(from: until))\(skipped)" }
+        return "\(days), \(rule.count ?? 0) times\(skipped)"
+    }
+
     private func reminderText(for draft: EventDraft) -> String? {
         guard let minutes = draft.reminderMinutes else { return nil }
         if minutes == 0 { return "None" }
@@ -300,6 +389,7 @@ struct VoiceEventView: View {
         draft = nil
         deleteQuery = nil
         deleteCandidates = []
+        deleteIsMass = false
         lastHeard = ""
         errorMessage = nil
     }
@@ -308,25 +398,31 @@ struct VoiceEventView: View {
     private func handle(_ heard: String) {
         lastHeard = heard
         errorMessage = nil
-        switch VoiceIntentClassifier().classify(heard) {
+        switch classifier.classify(heard) {
         case .confirm:
             if deleteQuery != nil {
                 // A generic "yes"/"ok" is not enough to delete something.
                 errorMessage = "To delete it, say “delete it” or tap Delete."
             } else if let draft, draft.isComplete { create(draft) }
         case .confirmDelete:
-            if deleteQuery != nil, deleteCandidates.count == 1, let event = deleteCandidates.first { delete(event) }
+            if deleteQuery != nil, deleteIsMass {
+                if deleteCandidates.count <= Self.voiceDeleteLimit { deleteAll() }
+                else { errorMessage = "That's \(deleteCandidates.count) events — tap “Delete \(deleteCandidates.count) Events” to confirm." }
+            } else if deleteQuery != nil, deleteCandidates.count == 1, let event = deleteCandidates.first { delete(event) }
             else if deleteQuery != nil, deleteCandidates.count > 1 { errorMessage = "More than one event matches — tap the one to delete." }
         case .cancel:
             if draft != nil || deleteQuery != nil { reset() } else { speech.cancel(); dismiss() }
         case .delete(let request):
             draft = nil
             deleteQuery = heard
+            deleteIsMass = request.isAll
             deleteCandidates = findEvents(for: request)
+            if request.rangeUnresolved { errorMessage = "I don't know when the quarter ends. Say an end date instead, like “until December 4th”." }
+            else if request.titleWords.isEmpty { errorMessage = "Say which event to delete, by name." }
             if let first = deleteCandidates.first { onFocusDate(first.startDate) }
         case .describeEvent:
             // A new description while a delete was pending abandons it.
-            if deleteQuery != nil { deleteQuery = nil; deleteCandidates = [] }
+            if deleteQuery != nil { deleteQuery = nil; deleteCandidates = []; deleteIsMass = false }
             draft = parser.parse(heard, applying: draft)
             if let start = draft?.start { onFocusDate(start) }
         }
@@ -350,33 +446,57 @@ struct VoiceEventView: View {
         }
     }
 
+    private func deleteAll() {
+        let events = deleteCandidates
+        guard !events.isEmpty else { return }
+        let snapshots = events.map { EventSnapshot(event: $0) }
+        var failed = 0
+        for event in events { do { try eventStore.delete(event) } catch { failed += 1 } }
+        undoManager.register(message: "\(events.count - failed) Events Deleted") {
+            for snapshot in snapshots { snapshot.recreate(in: eventStore) }
+        }
+        if failed > 0 { errorMessage = "\(failed) couldn't be deleted." }
+        speech.cancel()
+        dismiss()
+    }
+
     private func create(_ draft: EventDraft) {
         guard let start = draft.start else { return }
         let calendar = writableCalendars.first { $0.title.caseInsensitiveCompare(draft.calendarTitle ?? "") == .orderedSame }
             ?? eventStore.store.defaultCalendarForNewEvents
             ?? writableCalendars.first
         guard let calendar else { errorMessage = "No calendar to add this to."; return }
-        let end = draft.end ?? start.addingTimeInterval(3600)
+        let length = draft.end.map { $0.timeIntervalSince(start) } ?? 3600
+        let starts = draft.occurrences()
+        guard !starts.isEmpty else { errorMessage = "No dates to add."; return }
         do {
-            let event = try eventStore.createEvent(
-                title: draft.title,
-                startDate: start,
-                endDate: end,
-                isAllDay: draft.isAllDay,
-                calendar: calendar,
-                location: draft.location,
-                notes: draft.notes
-            )
-            AppPreferencesAccess.reveal(calendar, rows: preferencesRows, in: modelContext)
-            if let minutes = draft.reminderMinutes {
-                EventReminderAccess.setReminder(minutes == 0 ? nil : minutes, for: event, in: reminderRows, context: modelContext)
+            var created: [EKEvent] = []
+            for occurrence in starts {
+                let end = draft.isAllDay
+                    ? (Calendar.current.date(byAdding: .day, value: 1, to: occurrence) ?? occurrence.addingTimeInterval(86_400))
+                    : occurrence.addingTimeInterval(length)
+                let event = try eventStore.createEvent(
+                    title: draft.title,
+                    startDate: occurrence,
+                    endDate: end,
+                    isAllDay: draft.isAllDay,
+                    calendar: calendar,
+                    location: draft.location,
+                    notes: draft.notes
+                )
+                created.append(event)
+                if let minutes = draft.reminderMinutes {
+                    EventReminderAccess.setReminder(minutes == 0 ? nil : minutes, for: event, in: reminderRows, context: modelContext)
+                }
             }
+            AppPreferencesAccess.reveal(calendar, rows: preferencesRows, in: modelContext)
             if let location = draft.location, !location.isEmpty {
                 EventLocationAccess.setLocation(location, coordinate: nil, title: draft.title, rows: locationOverrides, context: modelContext)
             }
-            if let identifier = event.eventIdentifier {
-                undoManager.register(message: "Event Added") {
-                    if let created = eventStore.event(withIdentifier: identifier) { try? eventStore.delete(created) }
+            let identifiers = created.compactMap(\.eventIdentifier)
+            undoManager.register(message: created.count == 1 ? "Event Added" : "\(created.count) Events Added") {
+                for identifier in identifiers {
+                    if let event = eventStore.event(withIdentifier: identifier) { try? eventStore.delete(event) }
                 }
             }
             onFocusDate(start)

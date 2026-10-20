@@ -67,12 +67,14 @@
 		961536C43B82540806378DFF /* CalendarAppTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 630BE18CDE9EA805082EAE19 /* CalendarAppTests.swift */; };
 		972451A267763A63C03A52AE /* CompletionMirrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F637A68E150FA806DA9F955 /* CompletionMirrorTests.swift */; };
 		97AE74B619110F9AB936242E /* SavedAddress.swift in Sources */ = {isa = PBXBuildFile; fileRef = FADE9FA177CABB78D690AE32 /* SavedAddress.swift */; };
+		A472D91D28449CD5F19D78E6 /* VoiceBulkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09DB7F5AC1EF02A8C0B48907 /* VoiceBulkTests.swift */; };
 		A6F318D11520D65B84C1E8E5 /* GoogleOAuthConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = C763FF5FCD0797D98A958CA0 /* GoogleOAuthConfig.swift */; };
 		AD6A3D539C522C0188967BB2 /* CompletionOutboxTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC8279062C78D1C32A432242 /* CompletionOutboxTests.swift */; };
 		AEF3947A69BB58E5765DED90 /* LocationSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78C927D3EF58F80F42033E71 /* LocationSearchService.swift */; };
 		AF34902CEDFBF3646F45AE58 /* PlannerEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 495701DC23C2623E3735C6F3 /* PlannerEvent.swift */; };
 		AF6C5EBBE59115B739B8BBCD /* EventCompletionStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0967F713A5DD6B6A055808E6 /* EventCompletionStatus.swift */; };
 		B0071FA5A6B5019847E6042C /* AppPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BEF6D502390FF9C3C791F8B /* AppPreferences.swift */; };
+		B9CF6F4E086A02AAFA8D351C /* SpokenRange.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50A6115EFE7BD21EA273D2A1 /* SpokenRange.swift */; };
 		BAEDF32760E54A96324CDD69 /* SyncTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54AAD3C72D1CB7F233FADD86 /* SyncTransport.swift */; };
 		BF1DC63431927C1A59B94784 /* NextEventWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2516FB1F3393324C31E673EB /* NextEventWidget.swift */; };
 		BF5FCC8EA97900F93C717F64 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC080D5F9ACC4C881ECBCCFF /* AppTheme.swift */; };
@@ -147,6 +149,7 @@
 		08A03D6D8BC027B7F6ECDBB7 /* DuplicateEventFinder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuplicateEventFinder.swift; sourceTree = "<group>"; };
 		0967F713A5DD6B6A055808E6 /* EventCompletionStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventCompletionStatus.swift; sourceTree = "<group>"; };
 		09A23EAC3A6FC3BA41EE8C6F /* PlannerEventEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlannerEventEditorView.swift; sourceTree = "<group>"; };
+		09DB7F5AC1EF02A8C0B48907 /* VoiceBulkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceBulkTests.swift; sourceTree = "<group>"; };
 		0F0E38D23375FD48B05A0ED8 /* GoogleOAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleOAuthService.swift; sourceTree = "<group>"; };
 		0F637A68E150FA806DA9F955 /* CompletionMirrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionMirrorTests.swift; sourceTree = "<group>"; };
 		10E264872694DEA00BF60E9F /* CalendarListSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarListSidebarView.swift; sourceTree = "<group>"; };
@@ -172,6 +175,7 @@
 		4981D58E8E0AE517A6ECB3C9 /* CalendarAppWidgetsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarAppWidgetsBundle.swift; sourceTree = "<group>"; };
 		49CC95A9C365B59AACD93E2B /* ImportFromWebAppView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportFromWebAppView.swift; sourceTree = "<group>"; };
 		4BEF6D502390FF9C3C791F8B /* AppPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferences.swift; sourceTree = "<group>"; };
+		50A6115EFE7BD21EA273D2A1 /* SpokenRange.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpokenRange.swift; sourceTree = "<group>"; };
 		5233741E0FB162B960D39B9E /* EventLocationOverride.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventLocationOverride.swift; sourceTree = "<group>"; };
 		54AAD3C72D1CB7F233FADD86 /* SyncTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncTransport.swift; sourceTree = "<group>"; };
 		5788641ABB8E4391B97A7928 /* MonthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthView.swift; sourceTree = "<group>"; };
@@ -346,6 +350,7 @@
 				FC8279062C78D1C32A432242 /* CompletionOutboxTests.swift */,
 				D50E6883C5DFDBCD55CD0466 /* EventDayTextTests.swift */,
 				37143EC6E314976E2157C3B1 /* SyncReconcilerTests.swift */,
+				09DB7F5AC1EF02A8C0B48907 /* VoiceBulkTests.swift */,
 				EDA0BE356447CB32C6F8759B /* VoiceEventParserTests.swift */,
 				61B8C60FE52095F5EFC7DEDB /* VoiceIntentTests.swift */,
 			);
@@ -438,6 +443,7 @@
 				CED8EFB094B57EA9E755E8B9 /* EventDraft.swift */,
 				A9B122F5D0AD0666A3AAFB11 /* SpeechTranscriber.swift */,
 				E6F11B02111A7736EEC9E6A5 /* SpokenDate.swift */,
+				50A6115EFE7BD21EA273D2A1 /* SpokenRange.swift */,
 				2B3D641C4D925CAEA8E935DF /* VoiceEventParser.swift */,
 				F189C48ED2613E64A0D2FCDD /* VoiceEventView.swift */,
 				BFA197C0A956DF3012C06EAC /* VoiceIntent.swift */,
@@ -646,6 +652,7 @@
 				AD6A3D539C522C0188967BB2 /* CompletionOutboxTests.swift in Sources */,
 				7532CFC6D24BC723A057FEEC /* EventDayTextTests.swift in Sources */,
 				803D4FDA8CC415C3E0032124 /* SyncReconcilerTests.swift in Sources */,
+				A472D91D28449CD5F19D78E6 /* VoiceBulkTests.swift in Sources */,
 				C8D17D87D42EE995C1C5D345 /* VoiceEventParserTests.swift in Sources */,
 				65F16C4A80A0B5465C7B619A /* VoiceIntentTests.swift in Sources */,
 			);
@@ -716,6 +723,7 @@
 				6F324DEFB21EC2F47EC98123 /* SavedAddress.swift in Sources */,
 				148C32BAB1F61BE0B74D7E32 /* SpeechTranscriber.swift in Sources */,
 				884DC58EF39C5EBAE539C9B9 /* SpokenDate.swift in Sources */,
+				B9CF6F4E086A02AAFA8D351C /* SpokenRange.swift in Sources */,
 				29E7DB438B12BE6DFD5A8EDB /* SyncAdapters.swift in Sources */,
 				D80F771585894DF5ADAAB516 /* SyncCoordinator.swift in Sources */,
 				D8CFBB9D5F917185C0625A6D /* SyncReconciler.swift in Sources */,

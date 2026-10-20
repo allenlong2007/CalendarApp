@@ -11,6 +11,8 @@ struct VoiceEventParser {
     /// Titles of the user's calendars ("Exercise", "Church", ...).
     var calendarTitles: [String]
     var calendar: Calendar = .current
+    /// Last day of the quarter, for "for the rest of the quarter".
+    var quarterEnd: Date?
 
     func parse(_ spoken: String, applying existing: EventDraft? = nil, now: Date = .now) -> EventDraft {
         var draft = existing ?? EventDraft()
@@ -25,8 +27,27 @@ struct VoiceEventParser {
         if let category = extractCategory(&rest) { draft.calendarTitle = category }
         if extract(#"\ball[- ]day\b"#, from: &rest) != nil { draft.isAllDay = true }
         let duration = extractDuration(&rest)
+
+        // Bulk adds: "every Friday", "every day this week", "weekdays", plus how
+        // long ("for the rest of the quarter", "the next few weeks", "until Dec 4")
+        // and exceptions ("skip Thanksgiving"). All come out before the date is
+        // read, or "Friday" would be taken for a single day.
+        let newRule = extractRepeat(&rest)
+        rest = rest.replacingOccurrences(of: #"(?i)\bstarting (?!at\b)(?:on |from )?"#, with: "", options: .regularExpression)
+        let skips = extractSkips(&rest, now: now)
+        let repeating = newRule != nil || draft.repeatRule != nil
+        let end = repeating
+            ? SpokenRangeResolver(calendar: calendar, quarterEnd: quarterEnd).extractEnd(&rest, from: draft.start ?? now, now: now)
+            : nil
+        let previousStart = draft.start
+
         // Dates and times go before the location, or "at 6pm" reads as a place.
-        applyDateAndTime(&rest, to: &draft, duration: duration, isCorrection: isCorrection, now: now)
+        let daySpoken = applyDateAndTime(&rest, to: &draft, duration: duration, isCorrection: isCorrection, now: now)
+        if repeating {
+            applyRepeat(newRule, end: end, skips: skips, to: &draft, daySpoken: daySpoken, previousStart: previousStart, now: now)
+        } else if !skips.isEmpty {
+            draft.skipDates += skips
+        }
         if let location = extractLocation(&rest) { draft.location = location }
 
         if draft.calendarTitle == nil, let guess = guessCategory(in: spoken) { draft.calendarTitle = guess }
@@ -126,12 +147,104 @@ struct VoiceEventParser {
         }
     }
 
+    // MARK: - Repeats
+
+    private static let weekdayNames = "monday|mon|tuesday|tues|tue|wednesday|wed|thursday|thurs|thur|thu|friday|fri|saturday|sat|sunday|sun"
+
+    private func extractRepeat(_ text: inout String) -> RepeatRule? {
+        if extract(#"\b(?:every|each) (?:weekday|work ?day|school day)s?\b|\bweekdays\b"#, from: &text) != nil {
+            return RepeatRule(weekdays: [2, 3, 4, 5, 6])
+        }
+        if extract(#"\b(?:every ?day|every single day|each day|daily)\b"#, from: &text) != nil {
+            return RepeatRule(everyDay: true)
+        }
+        let plural = #"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s"#
+        let names = Self.weekdayNames
+        let list = extract(#"\b(?:every|each)\s+((?:\#(names))s?(?:\s*(?:,|and|&)\s*(?:\#(names))s?)*)\b"#, from: &text)
+            ?? extract(#"\b(?:on\s+)?(\#(plural)(?:\s*(?:,|and|&)\s*\#(plural))*)\b"#, from: &text)
+        if let list {
+            let days = weekdayNumbers(in: list[1])
+            if !days.isEmpty { return RepeatRule(weekdays: days) }
+        }
+        if extract(#"\b(?:weekly|every week|each week|once a week)\b"#, from: &text) != nil { return RepeatRule() }
+        return nil
+    }
+
+    private func weekdayNumbers(in text: String) -> [Int] {
+        var result: [Int] = []
+        let lower = text.lowercased()
+        for (prefix, number) in [("sun", 1), ("mon", 2), ("tue", 3), ("wed", 4), ("thu", 5), ("fri", 6), ("sat", 7)]
+        where lower.range(of: #"\b"# + prefix, options: .regularExpression) != nil {
+            result.append(number)
+        }
+        return result
+    }
+
+    /// "skip Thanksgiving", "except November 26th and December 3rd".
+    private func extractSkips(_ text: inout String, now: Date) -> [Date] {
+        guard let g = extract(#"\b(?:skip|except(?: for)?|excluding|but not|not on|other than)\s+(.+?)(?=\s+(?:but|until|through|starting|every|remind|location|category)\b|[;.]|$)"#, from: &text) else { return [] }
+        let resolver = SpokenDateResolver(calendar: calendar)
+        return g[1].components(separatedBy: CharacterSet(charactersIn: ",&"))
+            .flatMap { $0.components(separatedBy: " and ") }
+            .compactMap { resolver.day(in: $0.trimmingCharacters(in: .whitespaces), now: now) }
+    }
+
+    private func applyRepeat(_ newRule: RepeatRule?, end: SpokenRangeResolver.End?, skips: [Date], to draft: inout EventDraft,
+                             daySpoken: Bool, previousStart: Date?, now: Date) {
+        var rule = newRule ?? draft.repeatRule ?? RepeatRule()
+        if let newRule, let old = draft.repeatRule {   // "make it every Wednesday": keep how long
+            rule.until = old.until
+            rule.count = old.count
+            _ = newRule
+        }
+        let today = calendar.startOfDay(for: now)
+        let ranger = SpokenRangeResolver(calendar: calendar, quarterEnd: quarterEnd)
+
+        // Where the first one falls.
+        let reposition = newRule != nil || daySpoken || end?.rangeStart != nil || draft.start == nil || previousStart == nil
+        if reposition {
+            let baseDay: Date
+            if daySpoken, let start = draft.start { baseDay = calendar.startOfDay(for: start) }
+            else if let rangeStart = end?.rangeStart { baseDay = rangeStart }
+            else if let previousStart { baseDay = calendar.startOfDay(for: previousStart) }
+            else { baseDay = today }
+
+            let time = (draft.timeKnown ? draft.start : nil).map { calendar.dateComponents([.hour, .minute], from: $0) }
+            let hour = time?.hour ?? 9, minute = time?.minute ?? 0
+            let length = draft.durationMinutes ?? 60
+
+            var chosen = baseDay
+            for offset in 0..<14 {
+                guard let day = calendar.date(byAdding: .day, value: offset, to: baseDay) else { break }
+                let weekday = calendar.component(.weekday, from: day)
+                let anchorWeekday = calendar.component(.weekday, from: baseDay)
+                guard rule.matches(weekday: weekday, firstWeekday: anchorWeekday) else { continue }
+                let candidate = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day) ?? day
+                let stillAhead = day > today || candidate > now || !draft.timeKnown
+                if stillAhead || daySpoken && day >= today { chosen = day; break }
+            }
+            let start = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: chosen) ?? chosen
+            draft.start = start
+            draft.end = start.addingTimeInterval(Double(length) * 60)
+        }
+
+        if let end {
+            if let count = end.count { rule.count = count; rule.until = nil }
+            else if let n = end.spanCount, let unit = end.spanUnit, let start = draft.start {
+                rule.until = ranger.lastDay(forSpan: n, unit: unit, startingOn: start); rule.count = nil
+            } else if let until = end.until { rule.until = until; rule.count = nil }
+        }
+        draft.repeatRule = rule
+        draft.skipDates += skips
+    }
+
     // MARK: - Dates and times
 
     private static let dayWords = #"(?i)\b(?:mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)[a-z]*\b|\b(?:today|tomorrow|tonight|next|this coming|jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\b|\b\d{1,2}(?:st|nd|rd|th)\b|\b\d{1,2}/\d{1,2}\b"#
     private static let timeWords = #"(?i)\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b|\b\d{1,2}:\d{2}\b|\bo'?clock\b"#
 
-    private func applyDateAndTime(_ text: inout String, to draft: inout EventDraft, duration: Int?, isCorrection: Bool, now: Date) {
+    @discardableResult
+    private func applyDateAndTime(_ text: inout String, to draft: inout EventDraft, duration: Int?, isCorrection: Bool, now: Date) -> Bool {
         // Phrases the system detector can't read ("next week", "the 25th") first.
         var foundDay: Date? = SpokenDateResolver(calendar: calendar).extractDay(&text, now: now)
         var foundTime: DateComponents?, foundDuration: TimeInterval = 0
@@ -159,7 +272,7 @@ struct VoiceEventParser {
             text.replaceSubrange(range, with: " \(kept) ")
         }
 
-        guard foundDay != nil || foundTime != nil || duration != nil else { return }
+        guard foundDay != nil || foundTime != nil || duration != nil else { return false }
 
         let oldStart = draft.start
         let oldTimeKnown = draft.timeKnown
@@ -200,6 +313,7 @@ struct VoiceEventParser {
             draft.end = calendar.date(byAdding: .day, value: 1, to: draft.start ?? start)
             draft.timeKnown = true
         }
+        return foundDay != nil
     }
 
     private static let dateVocabulary = #"(?i)^(?:\d{1,2}(?::\d{2})?(?:am|pm)?|am|pm|at|on|from|to|until|till|through|the|of|and|in|by|-|noon|midnight|morning|afternoon|evening|night|tonight|today|tomorrow|next|this|last|week|weekend|month|year|day|days|o'clock|(?:mon|tues?|wed(?:nes)?|thu(?:rs?)?|fri|sat(?:ur)?|sun)(?:day)?|\d{1,2}(?:st|nd|rd|th)|\d{1,2}/\d{1,2}(?:/\d{2,4})?|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)$"#
