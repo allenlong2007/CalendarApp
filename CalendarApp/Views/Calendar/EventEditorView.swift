@@ -349,7 +349,8 @@ struct EventEditorView: View {
             reminderMinutes = draft.reminderMinutes.map { $0 == 0 ? nil : $0 } ?? 15
             repeatOption = .never
             repeatOccurrences = 8
-            let named = writableCalendars.first { $0.title.caseInsensitiveCompare(draft.calendarTitle ?? "") == .orderedSame }
+            let named = writableCalendars.first { $0.calendarIdentifier == draft.calendarIdentifier }
+                ?? writableCalendars.first { $0.title.caseInsensitiveCompare(draft.calendarTitle ?? "") == .orderedSame }
             selectedCalendarIdentifier = named?.calendarIdentifier
                 ?? eventStore.store.defaultCalendarForNewEvents?.calendarIdentifier
                 ?? writableCalendars.first?.calendarIdentifier

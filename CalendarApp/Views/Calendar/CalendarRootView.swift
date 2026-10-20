@@ -55,6 +55,11 @@ struct CalendarRootView: View {
                     HStack(spacing: 0) {
                         calendarContent
                         Divider()
+                        if showingVoice {
+                            // Wide layouts (Mac, iPad): the voice panel takes the side column, so the
+                            // whole calendar stays visible and usable -- no popup involved.
+                            voicePanel.frame(width: 360)
+                        } else {
                         CalendarSidebarView(
                             referenceDate: $referenceDate,
                             selectedDate: selectedDate,
@@ -74,6 +79,7 @@ struct CalendarRootView: View {
                                 eventStore.deleteWithUndo(event, undoManager: undoManager)
                             }
                         )
+                        }
                     }
                 } else {
                     calendarContent
@@ -148,10 +154,8 @@ struct CalendarRootView: View {
         .sheet(isPresented: $showingQuickAdd) {
             QuickAddTemplatesView(targetDate: defaultNewEventDate)
         }
-        #if !targetEnvironment(macCatalyst)
         // Phone: a compact bottom panel, so the calendar stays visible above it.
-        .sheet(isPresented: $showingVoice) { voicePanel }
-        #endif
+        .sheet(isPresented: Binding(get: { showingVoice && !isWideLayout }, set: { showingVoice = $0 })) { voicePanel }
         .onChange(of: showingVoice) {
             // Two sheets can't be up at once, so the editor waits for this one.
             if !showingVoice, let draft = draftForEditor {
@@ -162,27 +166,19 @@ struct CalendarRootView: View {
     }
 
     private var voiceButton: some View {
-        let button = Button {
-            showingVoice = true
+        Button {
+            showingVoice.toggle()
         } label: {
             Image(systemName: "mic.fill")
         }
         .accessibilityLabel("Add or Delete by Voice")
-        #if targetEnvironment(macCatalyst)
-        // Mac: a popover next to the button, not a modal sheet over the window.
-        return button
-            .help("Add or delete events by voice")
-            .popover(isPresented: $showingVoice, arrowEdge: .top) {
-                voicePanel.frame(width: 400, height: 560)
-            }
-        #else
-        return button
-        #endif
+        .help("Add or delete events by voice")
     }
 
     private var voicePanel: some View {
         VoiceEventView(
             onEditManually: { draftForEditor = $0 },
+            onClose: { showingVoice = false },
             onFocusDate: { date in
                 // Keep the calendar behind the panel on the day being discussed.
                 referenceDate = date

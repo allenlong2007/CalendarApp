@@ -10,6 +10,8 @@ import SwiftUI
 struct VoiceEventView: View {
     /// Hands the draft to the full editor (the parent presents it once this closes).
     let onEditManually: (EventDraft) -> Void
+    /// Closes the panel. (A panel shown inline, not as a sheet, can't use `dismiss`.)
+    var onClose: (() -> Void)?
     /// Moves the calendar behind the panel to a day.
     let onFocusDate: (Date) -> Void
 
@@ -39,6 +41,17 @@ struct VoiceEventView: View {
     private static let panelHeight: CGFloat = 380
     /// Above this many, a spoken "delete them" isn't enough -- it has to be tapped.
     private static let voiceDeleteLimit = 30
+
+    /// The calendar a draft belongs in: the exact one it was copied from if that
+    /// still exists, otherwise the one matching the spoken category name.
+    private func targetCalendar(for draft: EventDraft) -> EKCalendar? {
+        if let id = draft.calendarIdentifier, let exact = writableCalendars.first(where: { $0.calendarIdentifier == id }) { return exact }
+        return writableCalendars.first { $0.title.caseInsensitiveCompare(draft.calendarTitle ?? "") == .orderedSame }
+    }
+
+    private func close() {
+        if let onClose { onClose() } else { dismiss() }
+    }
 
     private var writableCalendars: [EKCalendar] { eventStore.calendars.filter(\.allowsContentModifications) }
     private var parser: VoiceEventParser { VoiceEventParser(calendarTitles: writableCalendars.map(\.title), quarterEnd: quarterEnd) }
@@ -79,13 +92,17 @@ struct VoiceEventView: View {
             .navigationTitle("Voice")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Close") { speech.cancel(); dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Close") { speech.cancel(); close() } }
             }
         }
-        // Compact by default with the calendar still usable behind it.
+        #if !targetEnvironment(macCatalyst)
+        // Phone: compact by default, with the calendar still usable behind it. Sheet-only
+        // modifiers -- on the Mac this view is inside a popover, and applying them there
+        // makes UIKit trap while presenting it (the app quit on pressing the mic).
         .presentationDetents([.height(Self.panelHeight), .large])
         .presentationBackgroundInteraction(.enabled(upThrough: .height(Self.panelHeight)))
         .presentationDragIndicator(.visible)
+        #endif
         .task {
             speech.contextualStrings = writableCalendars.map(\.title) + locationOverrides.map(\.locationText)
             speech.onFinished = { heard in handle(heard) }
@@ -183,6 +200,8 @@ struct VoiceEventView: View {
                 categoryRow(for: draft)
                 row("Location", draft.location, missing: "None", optional: true)
                 row("Reminder", reminderText(for: draft), missing: "Default (15 min before)", optional: true)
+                // Notes only appear when copied from another event -- shown so they aren't carried along unseen.
+                if let notes = draft.notes, !notes.isEmpty { row("Notes", notes, missing: "") }
                 if let rule = draft.repeatRule {
                     row("Repeats", repeatText(for: draft, rule: rule), missing: "Say how long")
                     let plan = datesToCreate(draft)
@@ -228,7 +247,7 @@ struct VoiceEventView: View {
                 Button {
                     speech.cancel()
                     onEditManually(draft)
-                    dismiss()
+                    close()
                 } label: { Label("Edit Details", systemImage: "square.and.pencil").frame(maxWidth: .infinity) }
                 .buttonStyle(.bordered)
 
@@ -253,7 +272,7 @@ struct VoiceEventView: View {
     }
 
     private func categoryRow(for draft: EventDraft) -> some View {
-        let calendar = writableCalendars.first { $0.title.caseInsensitiveCompare(draft.calendarTitle ?? "") == .orderedSame }
+        let calendar = targetCalendar(for: draft)
         return HStack(alignment: .firstTextBaseline) {
             Text("Category").font(.subheadline).foregroundStyle(.secondary).frame(width: 80, alignment: .leading)
             if let calendar {
@@ -444,7 +463,7 @@ struct VoiceEventView: View {
             } else if deleteQuery != nil, deleteCandidates.count == 1, let event = deleteCandidates.first { delete(event) }
             else if deleteQuery != nil, deleteCandidates.count > 1 { errorMessage = "More than one event matches — tap the one to delete." }
         case .cancel:
-            if draft != nil || deleteQuery != nil { reset() } else { speech.cancel(); dismiss() }
+            if draft != nil || deleteQuery != nil { reset() } else { speech.cancel(); close() }
         case .delete(let request):
             draft = nil
             deleteQuery = heard
@@ -464,7 +483,8 @@ struct VoiceEventView: View {
             let location = EventLocationAccess.displayLocation(for: source, in: locationOverrides)?.text ?? source.location
             let copy = DuplicateSource(
                 title: source.title ?? "", start: source.startDate, end: source.endDate, isAllDay: source.isAllDay,
-                calendarTitle: source.calendar?.title, location: location, notes: source.notes
+                calendarTitle: source.calendar?.title, calendarIdentifier: source.calendar?.calendarIdentifier,
+                location: location, notes: source.notes
             )
             draft = parser.duplicate(copy, saying: rest)
             copyNote = "Copying “\(copy.title)” (\(DateMath.monthDayFormatter.string(from: copy.start)), \(whenTimes(source)))"
@@ -492,7 +512,7 @@ struct VoiceEventView: View {
         deleteCandidates.removeAll { $0.eventIdentifier == event.eventIdentifier }
         if deleteCandidates.isEmpty {
             speech.cancel()
-            dismiss()
+            close()
         }
     }
 
@@ -507,12 +527,12 @@ struct VoiceEventView: View {
         }
         if failed > 0 { errorMessage = "\(failed) couldn't be deleted." }
         speech.cancel()
-        dismiss()
+        close()
     }
 
     private func create(_ draft: EventDraft) {
         guard let start = draft.start else { return }
-        let calendar = writableCalendars.first { $0.title.caseInsensitiveCompare(draft.calendarTitle ?? "") == .orderedSame }
+        let calendar = targetCalendar(for: draft)
             ?? eventStore.store.defaultCalendarForNewEvents
             ?? writableCalendars.first
         guard let calendar else { errorMessage = "No calendar to add this to."; return }
@@ -551,7 +571,7 @@ struct VoiceEventView: View {
             }
             onFocusDate(start)
             speech.cancel()
-            dismiss()
+            close()
         } catch {
             errorMessage = error.localizedDescription
         }

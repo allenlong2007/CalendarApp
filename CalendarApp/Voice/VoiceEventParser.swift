@@ -24,7 +24,7 @@ struct VoiceEventParser {
         // "at the courts" is read as a location).
         if let explicit = extractExplicitTitle(&rest) { draft.title = capitalized(explicit) }
         if let minutes = extractReminder(&rest) { draft.reminderMinutes = minutes }
-        if let category = extractCategory(&rest) { draft.calendarTitle = category }
+        if let category = extractCategory(&rest) { draft.calendarTitle = category; draft.calendarIdentifier = nil }
         if extract(#"\ball[- ]day\b"#, from: &rest) != nil { draft.isAllDay = true }
         let duration = extractDuration(&rest)
 
@@ -370,6 +370,7 @@ struct DuplicateSource: Equatable {
     var end: Date
     var isAllDay: Bool
     var calendarTitle: String?
+    var calendarIdentifier: String?
     var location: String?
     var notes: String?
 }
@@ -408,6 +409,7 @@ extension VoiceEventParser {
 
         draft.title = source.title
         draft.calendarTitle = source.calendarTitle
+        draft.calendarIdentifier = source.calendarIdentifier
         draft.location = source.location
         draft.notes = source.notes
         draft.isAllDay = source.isAllDay

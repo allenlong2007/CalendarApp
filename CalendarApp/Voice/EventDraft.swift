@@ -7,6 +7,9 @@ struct EventDraft: Equatable {
     var title = ""
     /// Matched against the user's real calendars (categories) by title.
     var calendarTitle: String?
+    /// The exact calendar, when it's known (a copied event) -- preferred over the
+    /// title, since two calendars can share a name.
+    var calendarIdentifier: String?
     var start: Date?
     var end: Date?
     var isAllDay = false
