@@ -24,6 +24,9 @@ struct VoiceEventParser {
         // "at the courts" is read as a location).
         if let explicit = extractExplicitTitle(&rest) { draft.title = capitalized(explicit) }
         if let minutes = extractReminder(&rest) { draft.reminderMinutes = minutes }
+        // "Remind me in 6 months to ...", "set a reminder for Friday at 3": a reminder
+        // *is* an event on that day, so only the lead-in words come out.
+        let isReminder = extractReminderLeadIn(&rest)
         if let category = extractCategory(&rest) { draft.calendarTitle = category; draft.calendarIdentifier = nil }
         if extract(#"\ball[- ]day\b"#, from: &rest) != nil { draft.isAllDay = true }
         let duration = extractDuration(&rest)
@@ -43,6 +46,7 @@ struct VoiceEventParser {
 
         // Dates and times go before the location, or "at 6pm" reads as a place.
         let daySpoken = applyDateAndTime(&rest, to: &draft, duration: duration, isCorrection: isCorrection, now: now)
+        if isReminder && !isCorrection && newRule == nil { shapeReminder(&draft, duration: duration) }
         if repeating {
             applyRepeat(newRule, end: end, skips: skips, to: &draft, daySpoken: daySpoken, previousStart: previousStart, now: now)
         } else if !skips.isEmpty {
@@ -101,9 +105,30 @@ struct VoiceEventParser {
 
     private func extractReminder(_ text: inout String) -> Int? {
         if extract(#"\bno (?:reminder|alert|notification)s?\b"#, from: &text) != nil { return 0 }
-        guard let g = extract(#"\b(?:remind me|reminder|alert me|notify me|alert)\s+(?:me\s+)?(?:for\s+)?(\d+|an?|one|two|three|five|ten|fifteen|thirty|half an)\s*(minutes?|mins?|hours?|hrs?|days?)\s*(?:before|ahead|early|prior)?"#, from: &text) else { return nil }
+        // "remind me 10 minutes before" is an alert on the event; "... 10 minutes from now" is not.
+        guard let g = extract(#"\b(?:remind me|reminder|alert me|notify me|alert)\s+(?:me\s+)?(?:for\s+)?(\d+|an?|one|two|three|five|ten|fifteen|thirty|half an)\s*(minutes?|mins?|hours?|hrs?|days?)\b(?!\s*(?:from now|later))\s*(?:before|ahead|early|prior)?"#, from: &text) else { return nil }
         guard let amount = number(g[1]) else { return nil }
         return Int(amount * unitMinutes(g[2]))
+    }
+
+    /// Removes "remind me (to/about/that)" and "set a reminder (for/to)", leaving the
+    /// when and the what. True when the sentence was a reminder request.
+    private func extractReminderLeadIn(_ text: inout String) -> Bool {
+        extract(#"\b(?:(?:please\s+)?(?:set|make|add|create|put|schedule)(?:\s+up)?\s+(?:me\s+)?(?:an?\s+|the\s+)?(?:new\s+)?reminders?|remind me|reminder)\b(?:\s+(?:for|to|that|about|on|at))?(?![a-z])"#, from: &text) != nil
+    }
+
+    /// A reminder with only a day is an all-day item; with a time it's a short block.
+    private func shapeReminder(_ draft: inout EventDraft, duration: Int?) {
+        guard let start = draft.start else { return }
+        if !draft.timeKnown {
+            let day = calendar.startOfDay(for: start)
+            draft.isAllDay = true
+            draft.start = day
+            draft.end = calendar.date(byAdding: .day, value: 1, to: day)
+            draft.timeKnown = true
+        } else if duration == nil {
+            draft.end = start.addingTimeInterval(15 * 60)
+        }
     }
 
     private func extractDuration(_ text: inout String) -> Int? {
@@ -251,6 +276,16 @@ struct VoiceEventParser {
         var foundTime: DateComponents?, foundDuration: TimeInterval = 0
         var consumed: [Range<String.Index>] = []
 
+        // "in 20 minutes", "in half an hour", "2 hours from now": a moment relative to now.
+        let amount = #"(\d+(?:\.\d+)?|an?|one|two|three|four|five|six|seven|eight|nine|ten|fifteen|twenty|thirty|forty[ -]?five|half an?)"#
+        if let g = extract(#"\b(?:in|after)\s+\#(amount)\s*(minutes?|mins?|hours?|hrs?)(?:'s)?(?:\s+time)?\b"#, from: &text)
+            ?? extract(#"\b\#(amount)\s*(minutes?|mins?|hours?|hrs?)\s+(?:from now|later)\b"#, from: &text),
+           let count = number(g[1]) {
+            let target = now.addingTimeInterval(count * unitMinutes(g[2]) * 60)
+            foundDay = calendar.startOfDay(for: target)
+            foundTime = calendar.dateComponents([.hour, .minute], from: target)
+        }
+
         let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue)
         let matches = detector?.matches(in: text, range: NSRange(text.startIndex..., in: text)) ?? []
         for match in matches {
@@ -333,7 +368,7 @@ struct VoiceEventParser {
             with: "", options: .regularExpression)
         // Words stranded by what was cut out ("pickleball on", "to Warren").
         s = s.replacingOccurrences(of: #"(?i)(?:\s+(?:on|at|from|to|for|and|in|every|until|the|a|an|my)\b)+\s*$"#, with: "", options: .regularExpression)
-        s = s.replacingOccurrences(of: #"(?i)^\s*(?:(?:on|at|from|to|and|every|the)\b\s*)+"#, with: "", options: .regularExpression)
+        s = s.replacingOccurrences(of: #"(?i)^\s*(?:(?:on|at|from|to|and|every|the|that|about|for)\b\s*)+"#, with: "", options: .regularExpression)
         s = s.replacingOccurrences(of: #"[,.;]+"#, with: " ", options: .regularExpression)
         return s.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression).trimmingCharacters(in: .whitespaces)
     }
@@ -352,7 +387,8 @@ struct VoiceEventParser {
     private func number(_ word: String) -> Double? {
         let w = word.lowercased()
         if let n = Double(w) { return n }
-        return ["a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "ten": 10, "fifteen": 15, "thirty": 30, "half an": 0.5, "half a": 0.5][w]
+        return ["a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10, "fifteen": 15, "twenty": 20, "thirty": 30,
+                "forty five": 45, "forty-five": 45, "fortyfive": 45, "half an": 0.5, "half a": 0.5][w]
     }
 
     private func unitMinutes(_ unit: String) -> Double {

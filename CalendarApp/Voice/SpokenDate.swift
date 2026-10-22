@@ -11,7 +11,8 @@ struct SpokenDateResolver {
     private static let weekdayNames = "monday|mon|tuesday|tues|tue|wednesday|wed|thursday|thurs|thur|thu|friday|fri|saturday|sat|sunday|sun"
     private static let numberWords: [String: Int] = [
         "a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
-        "seven": 7, "eight": 8, "nine": 9, "ten": 10, "a couple of": 2, "couple": 2,
+        "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "fifteen": 15,
+        "eighteen": 18, "twenty": 20, "thirty": 30, "a couple of": 2, "couple": 2, "a few": 3, "few": 3,
     ]
     private static let months = "jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec"
 
@@ -32,12 +33,21 @@ struct SpokenDateResolver {
         }
         if extract(#"\b(?:the )?day after tomorrow\b"#, from: &text) != nil { return add(.day, 2, to: today) }
 
-        // "in two weeks", "3 days from now".
-        if let g = extract(#"\bin (\d+|a couple of|an?|one|two|three|four|five|six|seven|eight|nine|ten) (day|week|month)s?\b"#, from: &text)
-            ?? extract(#"\b(\d+|an?|one|two|three|four|five|six|seven|eight|nine|ten) (day|week|month)s? from (?:now|today)\b"#, from: &text),
+        // "in two weeks", "in 6 months", "3 days from now", "a year from now".
+        let count = #"(\d+|a couple of|a few|an?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|eighteen|twenty|thirty)"#
+        if let g = extract(#"\bin \#(count) (day|week|month|year)s?(?:'s?)?(?: time)?\b"#, from: &text)
+            ?? extract(#"\b\#(count) (day|week|month|year)s? (?:from (?:now|today)|later)\b"#, from: &text),
            let amount = Int(g[1]) ?? Self.numberWords[g[1].lowercased()] {
-            return add(g[2].lowercased() == "day" ? .day : g[2].lowercased() == "week" ? .weekOfYear : .month, amount, to: today)
+            let unit: Calendar.Component
+            switch g[2].lowercased() {
+            case "day": unit = .day
+            case "week": unit = .weekOfYear
+            case "year": unit = .year
+            default: unit = .month
+            }
+            return add(unit, amount, to: today)
         }
+        if extract(#"\bnext year\b"#, from: &text) != nil { return add(.year, 1, to: today) }
 
         // Weekends.
         if extract(#"\bnext weekend\b"#, from: &text) != nil { return saturday(inWeekOffset: 1, now: today) }

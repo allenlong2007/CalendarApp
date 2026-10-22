@@ -137,4 +137,33 @@ struct SpokenDateTests {
         #expect(request.day.map { cal.component(.weekday, from: $0) } == 5)
         #expect(request.day.map { startOfWeek($0) } == cal.date(byAdding: .day, value: 7, to: startOfWeek(.now)))
     }
+
+    // MARK: - Reminders
+
+    @Test func remindMeInSixMonthsIsAnAllDayItemSixMonthsOut() {
+        let d = parser.parse("remind me in 6 months to renew my passport")
+        #expect(d.title == "Renew My Passport")
+        #expect(d.isAllDay)
+        #expect(cal.isDate(d.start!, inSameDayAs: cal.date(byAdding: .month, value: 6, to: .now)!))
+    }
+
+    @Test func setAReminderForATimeKeepsTheTimeAndTitle() {
+        let d = parser.parse("set a reminder for tomorrow at 3 pm to call mom")
+        #expect(d.title == "Call Mom")
+        #expect(cal.component(.hour, from: d.start!) == 15)
+        #expect(d.durationMinutes == 15)
+    }
+
+    @Test func remindMeInTwentyMinutesIsRelativeToNow() {
+        let now = Date()
+        let d = parser.parse("set a reminder in 20 minutes to check the oven", now: now)
+        #expect(d.title == "Check The Oven")
+        #expect(abs(d.start!.timeIntervalSince(now) - 20 * 60) < 60)
+    }
+
+    @Test func minutesBeforeStillMeansAnAlert() {
+        let d = parser.parse("dentist tomorrow remind me 30 minutes before")
+        #expect(d.reminderMinutes == 30)
+        #expect(d.title == "Dentist")
+    }
 }
