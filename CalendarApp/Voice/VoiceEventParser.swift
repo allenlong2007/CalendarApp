@@ -43,6 +43,7 @@ struct VoiceEventParser {
             ? SpokenRangeResolver(calendar: calendar, quarterEnd: quarterEnd).extractEnd(&rest, from: draft.start ?? now, now: now)
             : nil
         let previousStart = draft.start
+        if !repeating { draft.extraDays += extractExtraDays(&rest, now: now) }
 
         // Dates and times go before the location, or "at 6pm" reads as a place.
         let daySpoken = applyDateAndTime(&rest, to: &draft, duration: duration, isCorrection: isCorrection, now: now)
@@ -170,6 +171,56 @@ struct VoiceEventParser {
         calendarTitles.sorted { $0.count > $1.count }.first { title in
             title.count >= 4 && text.range(of: #"\b"# + NSRegularExpression.escapedPattern(for: title) + #"\b"#, options: [.regularExpression, .caseInsensitive]) != nil
         }
+    }
+
+    // MARK: - Several days
+
+    /// "... Tuesday and next Friday": a clause made only of date words, right after
+    /// another date, is one more day for the same event. It comes out of `text`; any
+    /// time said with it ("at 3 pm") stays, since the whole event shares one time.
+    private func extractExtraDays(_ text: inout String, now: Date) -> [Date] {
+        let separator = #"\s*(?:,|&|\band\b|\bplus\b)\s*"#
+        guard let regex = try? NSRegularExpression(pattern: separator, options: [.caseInsensitive]) else { return [] }
+        let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+        guard !matches.isEmpty else { return [] }
+
+        // Clause i runs from the end of separator i-1 to the start of separator i.
+        var bounds: [(Range<String.Index>, Range<String.Index>?)] = []   // (clause, separator before it)
+        var last = text.startIndex
+        var sepBefore: Range<String.Index>?
+        for m in matches {
+            guard let sep = Range(m.range, in: text) else { continue }
+            bounds.append((last..<sep.lowerBound, sepBefore))
+            last = sep.upperBound; sepBefore = sep
+        }
+        bounds.append((last..<text.endIndex, sepBefore))
+
+        let resolver = SpokenDateResolver(calendar: calendar)
+        var days: [Date] = []
+        var removals: [Range<String.Index>] = []
+        var carriedTime = ""
+        for index in 1..<bounds.count {
+            let clauseRange = bounds[index].0
+            let clause = String(text[clauseRange])
+            let before = String(text[bounds[index - 1].0]).split(separator: " ").last.map(String.init) ?? ""
+            // The leading run of date words is the day (and time); what follows stays.
+            var consumed = 0
+            let tokens = clause.split(separator: " ", omittingEmptySubsequences: true)
+            for token in tokens { if isDateWord(String(token)) { consumed += 1 } else { break } }
+            guard consumed > 0, isDateWord(before), let sep = bounds[index].1 else { continue }
+            let phrase = tokens.prefix(consumed).joined(separator: " ")
+            guard let day = resolver.day(in: phrase, now: now) else { continue }
+            days.append(day)
+            // Cut from the separator through the end of the day phrase.
+            guard let phraseEnd = clause.range(of: phrase) else { continue }
+            let offset = clause.distance(from: clause.startIndex, to: phraseEnd.upperBound)
+            let end = text.index(clauseRange.lowerBound, offsetBy: offset)
+            removals.append(sep.lowerBound..<end)
+            if let t = phrase.range(of: #"(?i)\b(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm)\b"#, options: .regularExpression) { carriedTime = " " + String(phrase[t]) }
+        }
+        for range in removals.reversed() { text.replaceSubrange(range, with: " ") }
+        text += carriedTime
+        return days
     }
 
     // MARK: - Repeats
@@ -364,7 +415,7 @@ struct VoiceEventParser {
     private func cleanTitle(_ text: String) -> String {
         var s = text
         s = s.replacingOccurrences(
-            of: #"(?i)^\s*(?:please\s+|can you\s+|could you\s+|i want to\s+|i need to\s+)?(?:add|create|schedule|put|set up|make|book|new)\s+(?:me\s+)?(?:an?\s+|the\s+)?(?:new\s+)?(?:event|appointment)?\s*(?:called|named|for)?\s*"#,
+            of: #"(?i)^\s*(?:please\s+|can you\s+|could you\s+|i want to\s+|i need to\s+)?(?:add|create|schedule|put|set up|make|book|new)\s+(?:me\s+)?(?:an?\s+|the\s+)?(?:new\s+)?(?:event|appointment)?\s*(?:(?:called|named|titled|for)\s+)*"#,
             with: "", options: .regularExpression)
         // Words stranded by what was cut out ("pickleball on", "to Warren").
         s = s.replacingOccurrences(of: #"(?i)(?:\s+(?:on|at|from|to|for|and|in|every|until|the|a|an|my)\b)+\s*$"#, with: "", options: .regularExpression)

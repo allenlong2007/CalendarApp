@@ -13,6 +13,8 @@ enum VoiceIntent: Equatable {
     /// copy an existing event. Carries what was said after the verb.
     case duplicate(String)
     case cancel
+    /// "move this event one day forward", "push the dentist 2 months back".
+    case move(VoiceMoveRequest)
     /// Anything else: details of an event to add, or a correction to the draft.
     case describeEvent
 }
@@ -34,6 +36,9 @@ struct VoiceDeleteRequest: Equatable {
     /// A range was spoken but its end isn't known ("the rest of the quarter"
     /// when the app can't tell when that is) -- better to match nothing than guess.
     var rangeUnresolved = false
+    /// "delete the dentist and the haircut": one request per event. Used only if
+    /// the sentence taken as a single title matches nothing.
+    var splitParts: [VoiceDeleteRequest] = []
 }
 
 struct VoiceIntentClassifier {
@@ -55,13 +60,24 @@ struct VoiceIntentClassifier {
                 .replacingOccurrences(of: #"(?i)^(?:please\s+)?(?:duplicate|copy|clone|replicate)\s+(?:the\s+|my\s+)?"#, with: "", options: .regularExpression)
             return .duplicate(original)
         }
+        if let move = moveRequest(from: spoken, now: now) { return .move(move) }
         if let rest = capture(#"^(?:please\s+)?(?:delete|remove|cancel|erase|get rid of)\s+(?:the\s+|my\s+|that\s+)?(.+)$"#, in: text) {
-            return .delete(request(from: rest, now: now))
+            var single = request(from: rest, now: now)
+            let clauses = rest.components(separatedBy: #"\s*(?:,|&|\band\b|\bplus\b|\balso\b)\s*"#)
+            if clauses.count >= 2 {
+                var parts = clauses.map { request(from: $0, now: now) }
+                // "... and the haircut on Friday": a day said once, at the end, covers all of them.
+                if let last = parts.last, let day = last.day, parts.dropLast().allSatisfy({ $0.day == nil }) {
+                    for i in parts.indices { parts[i].day = day; if parts[i].hour == nil { parts[i].hour = last.hour } }
+                }
+                single.splitParts = parts
+            }
+            return .delete(single)
         }
         return .describeEvent
     }
 
-    private func request(from rest: String, now: Date) -> VoiceDeleteRequest {
+    func request(from rest: String, now: Date) -> VoiceDeleteRequest {
         var text = rest
         var isAll = false
         var weekdays: [Int] = []

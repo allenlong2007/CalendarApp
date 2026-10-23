@@ -35,6 +35,7 @@
 		34B54F6828E17D9239D18FC7 /* EventReminderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23ACDF029406F55C6516CAB0 /* EventReminderAccess.swift */; };
 		34D1E0FE6112099FD8F4760C /* SyncTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54AAD3C72D1CB7F233FADD86 /* SyncTransport.swift */; };
 		3DBC6D170DEE17F6EA54E0C1 /* PlannerEventEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09A23EAC3A6FC3BA41EE8C6F /* PlannerEventEditorView.swift */; };
+		4712850293D58C01EE69DA36 /* VoiceMoveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39F5E3878489661D92AC926C /* VoiceMoveTests.swift */; };
 		482AB4C656EAF030A3B5AE70 /* GoogleOAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F0E38D23375FD48B05A0ED8 /* GoogleOAuthService.swift */; };
 		48A156C9967AAFD163C3D142 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BA3310DCFD003E09F54D3ABE /* Assets.xcassets */; };
 		4A6F0F3E491CF2F2F42EBAD2 /* ToggleEventCompletionIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B91AAE1EB2F0E351240D28B5 /* ToggleEventCompletionIntent.swift */; };
@@ -90,6 +91,7 @@
 		D24E4D03E3C321E35A965481 /* EventLocationOverride.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5233741E0FB162B960D39B9E /* EventLocationOverride.swift */; };
 		D396D3A8C49310D87A8F98E8 /* CalendarAppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABABF9AF4B56EF343E08F479 /* CalendarAppShortcuts.swift */; };
 		D55AC89F644B863173750359 /* UndoManagerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E39FC9791792E90388D0C2C /* UndoManagerService.swift */; };
+		D706FF8DD1B67F0C72C3D7FA /* VoiceMove.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149FE2268BF149BD90F27272 /* VoiceMove.swift */; };
 		D80F771585894DF5ADAAB516 /* SyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3397686277D37D8CCBC8D8CA /* SyncCoordinator.swift */; };
 		D87333AC735A5817AFE14FDF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BA3310DCFD003E09F54D3ABE /* Assets.xcassets */; };
 		D8CFBB9D5F917185C0625A6D /* SyncReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47530604D8B1AF4741D95550 /* SyncReconciler.swift */; };
@@ -154,6 +156,7 @@
 		0F637A68E150FA806DA9F955 /* CompletionMirrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionMirrorTests.swift; sourceTree = "<group>"; };
 		10E264872694DEA00BF60E9F /* CalendarListSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarListSidebarView.swift; sourceTree = "<group>"; };
 		130A5525A0C0F7A5F8822151 /* EventEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventEditorView.swift; sourceTree = "<group>"; };
+		149FE2268BF149BD90F27272 /* VoiceMove.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceMove.swift; sourceTree = "<group>"; };
 		1759F8C476FB5C170B89A5AD /* CompletionMirror.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionMirror.swift; sourceTree = "<group>"; };
 		1A47AA3DBD752D80B46A6420 /* CalendarAppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarAppApp.swift; sourceTree = "<group>"; };
 		2279106AAB46C57616AAA8D0 /* CompletionCheckButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionCheckButton.swift; sourceTree = "<group>"; };
@@ -167,6 +170,7 @@
 		3400B763C9A1B9245F1DEC0B /* CalendarAppTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CalendarAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		34D94AF6AC3962F9801F15DD /* BackgroundSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundSync.swift; sourceTree = "<group>"; };
 		37143EC6E314976E2157C3B1 /* SyncReconcilerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncReconcilerTests.swift; sourceTree = "<group>"; };
+		39F5E3878489661D92AC926C /* VoiceMoveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceMoveTests.swift; sourceTree = "<group>"; };
 		3FA2204CD0316873E6F13049 /* EventKitAccessGateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitAccessGateView.swift; sourceTree = "<group>"; };
 		42E0BCAEEB4076602864556D /* MapsLauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapsLauncher.swift; sourceTree = "<group>"; };
 		450FA9E15442C2535BB4CDE5 /* LocationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationPickerView.swift; sourceTree = "<group>"; };
@@ -353,6 +357,7 @@
 				09DB7F5AC1EF02A8C0B48907 /* VoiceBulkTests.swift */,
 				EDA0BE356447CB32C6F8759B /* VoiceEventParserTests.swift */,
 				61B8C60FE52095F5EFC7DEDB /* VoiceIntentTests.swift */,
+				39F5E3878489661D92AC926C /* VoiceMoveTests.swift */,
 			);
 			path = CalendarAppTests;
 			sourceTree = "<group>";
@@ -447,6 +452,7 @@
 				2B3D641C4D925CAEA8E935DF /* VoiceEventParser.swift */,
 				F189C48ED2613E64A0D2FCDD /* VoiceEventView.swift */,
 				BFA197C0A956DF3012C06EAC /* VoiceIntent.swift */,
+				149FE2268BF149BD90F27272 /* VoiceMove.swift */,
 			);
 			path = Voice;
 			sourceTree = "<group>";
@@ -655,6 +661,7 @@
 				A472D91D28449CD5F19D78E6 /* VoiceBulkTests.swift in Sources */,
 				C8D17D87D42EE995C1C5D345 /* VoiceEventParserTests.swift in Sources */,
 				65F16C4A80A0B5465C7B619A /* VoiceIntentTests.swift in Sources */,
+				4712850293D58C01EE69DA36 /* VoiceMoveTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -733,6 +740,7 @@
 				6A6E2F212106FC01B77BE2BA /* VoiceEventParser.swift in Sources */,
 				339B18C6B980DD306C6DAD7A /* VoiceEventView.swift in Sources */,
 				657545503724463B06A3D5B4 /* VoiceIntent.swift in Sources */,
+				D706FF8DD1B67F0C72C3D7FA /* VoiceMove.swift in Sources */,
 				DD4218DDA0EFE4D66603D66C /* WeekView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

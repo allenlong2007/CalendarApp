@@ -24,6 +24,8 @@ struct EventDraft: Equatable {
     var repeatRule: RepeatRule?
     /// Days left out of a repeat ("skip Thanksgiving").
     var skipDates: [Date] = []
+    /// More days to add the same event on ("Tuesday and next Friday"), at the same time.
+    var extraDays: [Date] = []
 
     enum Gap: String, CaseIterable {
         case title = "a title"
@@ -78,7 +80,16 @@ extension EventDraft {
     /// The start of every event this draft will create (one, when it doesn't repeat).
     func occurrences(calendar: Calendar = .current) -> [Date] {
         guard let start else { return [] }
-        guard let rule = repeatRule else { return [start] }
+        guard let rule = repeatRule else {
+            let time = calendar.dateComponents([.hour, .minute], from: start)
+            let firstDay = calendar.startOfDay(for: start)
+            var days: [Date] = [start]
+            for extra in extraDays.map({ calendar.startOfDay(for: $0) }).sorted()
+            where extra != firstDay && !days.contains(where: { calendar.startOfDay(for: $0) == extra }) {
+                days.append(calendar.date(bySettingHour: time.hour ?? 0, minute: time.minute ?? 0, second: 0, of: extra) ?? extra)
+            }
+            return days.sorted()
+        }
         let firstDay = calendar.startOfDay(for: start)
         let firstWeekday = calendar.component(.weekday, from: start)
         let time = calendar.dateComponents([.hour, .minute], from: start)

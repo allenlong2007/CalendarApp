@@ -185,7 +185,8 @@ struct CalendarRootView: View {
                 selectedDate = date
                 previewEvent = nil
                 monthJump += 1
-            }
+            },
+            selectedEvent: previewEvent
         )
     }
 
