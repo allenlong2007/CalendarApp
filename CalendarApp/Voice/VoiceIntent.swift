@@ -167,8 +167,17 @@ enum VoiceDeleteMatcher {
     /// Events the request could mean, best first: upcoming ones soonest first,
     /// then past ones most recent first. A request with no title words matches
     /// nothing -- "delete Thursday" must never offer a day's worth of events.
-    static func matches(_ request: VoiceDeleteRequest, in events: [EventRef], now: Date = .now, calendar: Calendar = .current) -> [EventRef] {
-        guard !request.titleWords.isEmpty, !request.rangeUnresolved else { return [] }
+    static func matches(_ request: VoiceDeleteRequest, in events: [EventRef], now: Date = .now, calendar: Calendar = .current, fuzzy: Bool = false) -> [EventRef] {
+        matchesWithQuality(request, in: events, now: now, calendar: calendar, fuzzy: fuzzy).events
+    }
+
+    /// Like `matches`, but says whether the answer is an exact one. With `fuzzy` on and no
+    /// exact hit, it falls back to the closest titles for words that were only partly
+    /// right or misheard ("dentist" for "Dentist Appointment", "pickle practice" for
+    /// "Pickleball Team Practice"). Bulk requests never go fuzzy -- a guess is fine
+    /// for picking one event to confirm, not for deleting dozens.
+    static func matchesWithQuality(_ request: VoiceDeleteRequest, in events: [EventRef], now: Date = .now, calendar: Calendar = .current, fuzzy: Bool = false) -> (events: [EventRef], exact: Bool) {
+        guard !request.titleWords.isEmpty, !request.rangeUnresolved else { return ([], true) }
 
         // Whole words, and every one of them: "practice" must not match inside
         // another word, and a partial match is never good enough to delete on.
@@ -177,11 +186,7 @@ enum VoiceDeleteMatcher {
         let upper = request.rangeEnd.flatMap { calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: $0)) }
             ?? calendar.date(byAdding: .day, value: 365, to: lower) ?? lower
 
-        let hits = events.filter { event in
-            let allPresent = request.titleWords.allSatisfy { word in
-                event.title.range(of: #"\b"# + NSRegularExpression.escapedPattern(for: word) + #"\b"#, options: [.regularExpression, .caseInsensitive]) != nil
-            }
-            guard allPresent else { return false }
+        func passesFilters(_ event: EventRef) -> Bool {
             if let day = request.day, !calendar.isDate(event.start, inSameDayAs: day) { return false }
             if let hour = request.hour {
                 let eventHour = calendar.component(.hour, from: event.start)
@@ -194,10 +199,71 @@ enum VoiceDeleteMatcher {
             return true
         }
 
-        // A bulk request returns everything in order; a single one, the few best.
-        if request.isAll { return Array(hits.sorted { $0.start < $1.start }.prefix(RepeatRule.maxEvents)) }
-        let upcoming = hits.filter { $0.start >= startOfToday }.sorted { $0.start < $1.start }
-        let past = hits.filter { $0.start < startOfToday }.sorted { $0.start > $1.start }
-        return Array((upcoming + past).prefix(5))
+        let hits = events.filter { event in
+            let allPresent = request.titleWords.allSatisfy { word in
+                event.title.range(of: #"\b"# + NSRegularExpression.escapedPattern(for: word) + #"\b"#, options: [.regularExpression, .caseInsensitive]) != nil
+            }
+            return allPresent && passesFilters(event)
+        }
+
+        func ordered(_ list: [EventRef]) -> [EventRef] {
+            // A bulk request returns everything in order; a single one, the few best.
+            if request.isAll { return Array(list.sorted { $0.start < $1.start }.prefix(RepeatRule.maxEvents)) }
+            let upcoming = list.filter { $0.start >= startOfToday }.sorted { $0.start < $1.start }
+            let past = list.filter { $0.start < startOfToday }.sorted { $0.start > $1.start }
+            return Array((upcoming + past).prefix(5))
+        }
+        if !hits.isEmpty || !fuzzy || request.isAll { return (ordered(hits), true) }
+
+        // Closest titles: score each by how well the spoken words match its words.
+        let scored: [(EventRef, Double)] = events.compactMap { event in
+            guard passesFilters(event) else { return nil }
+            let titleWords = tokens(event.title)
+            let sims = request.titleWords.map { word in titleWords.map { similarity(word, $0) }.max() ?? 0 }
+            let matched = sims.filter { $0 >= 0.6 }.count
+            guard matched >= max(1, (request.titleWords.count + 1) / 2) else { return nil }
+            return (event, sims.reduce(0, +) / Double(sims.count))
+        }
+        guard let best = scored.map(\.1).max() else { return ([], false) }
+        // Keep the leaders only, so one good guess isn't buried under weak ones.
+        let leaders = scored.filter { $0.1 >= best - 0.2 }.map(\.0)
+        return (ordered(leaders), false)
+    }
+
+    private static func tokens(_ text: String) -> [String] {
+        text.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
+    }
+
+    /// 1 for the same word, ~0.8 for a prefix or contained stem ("pickle" / "pickleball"),
+    /// ~0.6 for one or two letters off (a mishearing), else 0.
+    static func similarity(_ spoken: String, _ title: String) -> Double {
+        let a = spoken.lowercased(), b = title.lowercased()
+        if a == b { return 1 }
+        // Simple plurals.
+        if a + "s" == b || b + "s" == a { return 0.95 }
+        if a.count >= 3, b.count >= 3 {
+            if b.hasPrefix(a) || a.hasPrefix(b) { return 0.8 }
+            if a.count >= 4, b.contains(a) || (b.count >= 4 && a.contains(b)) { return 0.7 }
+        }
+        let longest = max(a.count, b.count)
+        guard longest >= 4 else { return 0 }
+        let distance = editDistance(Array(a), Array(b))
+        if distance <= 1 { return 0.65 }
+        if distance <= 2, longest >= 7 { return 0.6 }
+        return 0
+    }
+
+    private static func editDistance(_ a: [Character], _ b: [Character]) -> Int {
+        if a.isEmpty { return b.count }
+        if b.isEmpty { return a.count }
+        var previous = Array(0...b.count)
+        for i in 1...a.count {
+            var current = [i] + Array(repeating: 0, count: b.count)
+            for j in 1...b.count {
+                current[j] = min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1))
+            }
+            previous = current
+        }
+        return previous[b.count]
     }
 }

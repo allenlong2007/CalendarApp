@@ -78,3 +78,48 @@ struct VoiceMultiTests {
         #expect(d.occurrences().count == 1)
     }
 }
+
+struct VoiceGuessTests {
+    private let classifier = VoiceIntentClassifier()
+
+    private func refs() -> [EventRef] {
+        let now = Date()
+        return ["Pickleball Team Practice", "Dentist Appointment", "Speak Up Meeting", "Haircut"].enumerated()
+            .map { EventRef(id: "\($0.offset)", title: $0.element, start: now.addingTimeInterval(Double($0.offset + 1) * 86_400)) }
+    }
+
+    @Test func partialAndMisheardWordsFindTheClosestEvent() {
+        let find = { (words: [String]) in
+            VoiceDeleteMatcher.matches(VoiceDeleteRequest(titleWords: words), in: refs(), fuzzy: true).first?.title
+        }
+        #expect(find(["pickle", "practice"]) == "Pickleball Team Practice")
+        #expect(find(["dentis"]) == "Dentist Appointment")
+        #expect(find(["speak", "meting"]) == "Speak Up Meeting")
+        #expect(find(["groceries"]) == nil)
+    }
+
+    @Test func bulkRequestsNeverGuess() {
+        var request = VoiceDeleteRequest(titleWords: ["pickle"])
+        request.isAll = true
+        #expect(VoiceDeleteMatcher.matches(request, in: refs(), fuzzy: true).isEmpty)
+    }
+
+    @Test func backAndForwardWithoutAnEventMeanTheOpenOne() {
+        for (phrase, direction) in [("move back 1 day", -1), ("move forward one day", 1), ("one day forward", 1), ("can you move this back one day", -1)] {
+            guard case .move(let m) = classifier.classify(phrase) else { Issue.record("not a move: \(phrase)"); continue }
+            #expect(m.useSelected && m.amount == 1 && m.direction == direction)
+        }
+    }
+
+    @Test func fromOneDayToAnother() {
+        guard case .move(let m) = classifier.classify("move the event from the 21st to the 20th") else { Issue.record("not a move"); return }
+        #expect(m.source == "the 21st" && m.destination == "the 20th")
+    }
+
+    @Test func severalDifferentEventsInOneSentence() {
+        let parser = VoiceEventParser(calendarTitles: [])
+        let drafts = parser.parseMany("add a dentist appointment tuesday at 3 pm and a haircut friday at 5 pm")
+        #expect(drafts?.map(\.title) == ["Dentist Appointment", "Haircut"])
+        #expect(parser.parseMany("dinner with sam and alex tomorrow at 7 pm") == nil)
+    }
+}

@@ -68,6 +68,26 @@ struct VoiceEventParser {
         return draft
     }
 
+    // MARK: - Several different events
+
+    /// "Add a dentist visit Tuesday at 3 and a haircut Friday at 5": drafts for each,
+    /// or nil when the sentence isn't several complete events (so "dinner with Sam
+    /// and Alex tomorrow" stays one). Every clause must bring its own title and day.
+    func parseMany(_ spoken: String, now: Date = .now) -> [EventDraft]? {
+        let clauses = normalize(spoken).components(separatedBy: #"\s*(?:,|&|\band\b|\bplus\b|\bthen\b|\balso\b)\s*"#)
+        guard clauses.count >= 2, clauses.count <= 8 else { return nil }
+        var drafts: [EventDraft] = []
+        for (index, clause) in clauses.enumerated() {
+            let cleaned = index == 0 ? clause : clause.replacingOccurrences(
+                of: #"(?i)^(?:(?:add|schedule|create|put|book)\s+)?(?:an?\s+|the\s+)?(?:new\s+)?(?:event\s+|appointment\s+)?(?:(?:called|named)\s+)?"#,
+                with: "", options: .regularExpression)
+            let draft = parse(cleaned, now: now)
+            guard !draft.title.isEmpty, draft.start != nil, draft.extraDays.isEmpty || index == 0 else { return nil }
+            drafts.append(draft)
+        }
+        return drafts
+    }
+
     // MARK: - Normalising
 
     private func normalize(_ text: String) -> String {

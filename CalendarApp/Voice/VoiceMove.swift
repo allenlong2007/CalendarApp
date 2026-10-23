@@ -15,6 +15,9 @@ struct VoiceMoveRequest: Equatable {
     var direction = 1
     /// An absolute move: what was said after "to" ("Friday at 3 pm").
     var destination: String?
+    /// "from the 21st to the 20th": the day the event is on now. It's resolved against
+    /// the month showing in the calendar, so the month never has to be said.
+    var source: String?
     /// When the sentence names several events, one request each. The view uses
     /// these only if the sentence read as a single event matches nothing (so a
     /// title like "Rock and Roll" isn't torn apart).
@@ -37,19 +40,26 @@ private struct MoveChange {
     var unit: Calendar.Component?
     var directionWord: Int?
     var destination: String?
+    var source: String?
 
     var hasChange: Bool { (amount != nil && unit != nil) || destination != nil }
 }
 
 extension VoiceIntentClassifier {
-    private static let moveVerbs = "move|push|shift|postpone|reschedule|delay|bump|pull|bring"
+    private static let moveVerbs = "move|push|shift|postpone|reschedule|delay|bump|pull|bring|slide|nudge|advance|change"
 
     /// A move request, or nil if the sentence isn't one (so "move it to Friday" can
     /// still be a correction to a draft, and unrelated sentences fall through).
     func moveRequest(from spoken: String, now: Date = .now) -> VoiceMoveRequest? {
-        let text = spoken.lowercased()
+        var text = spoken.lowercased()
             .replacingOccurrences(of: #"[.!?]"#, with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        // Polite lead-ins ("can you move ...", "I want to push ...").
+        text = text.replacingOccurrences(of: #"^(?:(?:hey |ok |okay )?(?:can|could|would) you (?:please )?|please |i want to |i need to |i'd like to |let'?s |go ahead and )"#, with: "", options: .regularExpression)
+        // Just a direction and an amount ("back one day", "one day forward") means this event.
+        if text.range(of: #"^(?:back|forward|forwards|ahead|later|earlier)\b.*\b(?:minute|min|hour|hr|day|week|month|year)s?$|^(?:\d+|an?|one|two|three|four|five|six|seven|eight|nine|ten|a couple of|a few)\s+(?:minute|min|hour|hr|day|week|month|year)s?\s+(?:back|forward|forwards|ahead|later|earlier)$"#, options: .regularExpression) != nil {
+            text = "move it " + text
+        }
         guard let head = firstMatch(#"^(?:please\s+)?(\#(Self.moveVerbs))\s+(.+)$"#, in: text) else { return nil }
         let verb = head[1]
         let rest = head[2]
@@ -73,6 +83,7 @@ extension VoiceIntentClassifier {
                 if let donor {
                     changes[i].amount = donor.amount; changes[i].unit = donor.unit
                     changes[i].directionWord = donor.directionWord; changes[i].destination = donor.destination
+                    changes[i].source = changes[i].source ?? donor.source
                 }
             }
             if changes.count >= 2, changes.allSatisfy(\.hasChange) { request.parts = changes.map { finish($0, now: now) } }
@@ -85,8 +96,8 @@ extension VoiceIntentClassifier {
         if direction == 0 { direction = ["pull", "bring"].contains(c.verb) ? -1 : 1 }
         let target = request(from: c.subject, now: now)
         return VoiceMoveRequest(
-            target: target, useSelected: target.titleWords.isEmpty && target.day == nil,
-            amount: c.amount, unit: c.unit, direction: direction, destination: c.destination
+            target: target, useSelected: target.titleWords.isEmpty && target.day == nil && c.source == nil,
+            amount: c.amount, unit: c.unit, direction: direction, destination: c.destination, source: c.source
         )
     }
 
@@ -124,7 +135,11 @@ extension VoiceIntentClassifier {
             }
         }
 
-        if change.amount == nil, let split = rest.range(of: #"\s(?:to|until|onto)\s+(?!.*\s(?:to|until|onto)\s)"#, options: .regularExpression) {
+        if change.amount == nil, let g = firstMatch(#"\bfrom\s+(.+?)\s+(?:to|until|onto)\s+(.+?)\s*$"#, in: rest) {
+            change.source = g[1]
+            change.destination = g[2]
+            rest = rest.replacingOccurrences(of: g[0], with: " ")
+        } else if change.amount == nil, let split = rest.range(of: #"\s(?:to|until|onto)\s+(?!.*\s(?:to|until|onto)\s)"#, options: .regularExpression) {
             let destination = String(rest[split.upperBound...]).trimmingCharacters(in: .whitespaces)
             if !destination.isEmpty { change.destination = destination }
             rest = String(rest[..<split.lowerBound])

@@ -22,6 +22,8 @@ struct VoiceEventView: View {
     let onFocusDate: (Date) -> Void
     /// The event open in the calendar, which "move this event ..." refers to.
     var selectedEvent: EKEvent?
+    /// The day the calendar is showing: "the 21st" means that month's 21st.
+    var focusDate: Date = .now
 
     @Environment(EventStoreManager.self) private var eventStore
     @Environment(UndoManagerService.self) private var undoManager
@@ -32,7 +34,9 @@ struct VoiceEventView: View {
     @Query private var preferencesRows: [AppPreferences]
 
     @State private var speech = SpeechTranscriber()
-    @State private var draft: EventDraft?
+    /// Usually one; several when a sentence described several events (swipe through them).
+    @State private var drafts: [EventDraft] = []
+    @State private var pageID: Int? = 0
     /// Events a "delete ..." request matched, waiting for a yes.
     @State private var deleteCandidates: [EKEvent] = []
     @State private var deleteQuery: String?
@@ -63,6 +67,20 @@ struct VoiceEventView: View {
 
     /// The calendar a draft belongs in: the exact one it was copied from if that
     /// still exists, otherwise the one matching the spoken category name.
+    private var page: Int { min(max(pageID ?? 0, 0), max(drafts.count - 1, 0)) }
+
+    /// The draft on the page being looked at -- spoken corrections apply to it.
+    private var draft: EventDraft? {
+        get { drafts.isEmpty ? nil : drafts[page] }
+        nonmutating set {
+            if let newValue {
+                if drafts.isEmpty { drafts = [newValue] } else { drafts[page] = newValue }
+            } else {
+                drafts = []; pageID = 0
+            }
+        }
+    }
+
     private func targetCalendar(for draft: EventDraft) -> EKCalendar? {
         if let id = draft.calendarIdentifier, let exact = writableCalendars.first(where: { $0.calendarIdentifier == id }) { return exact }
         return writableCalendars.first { $0.title.caseInsensitiveCompare(draft.calendarTitle ?? "") == .orderedSame }
@@ -98,6 +116,7 @@ struct VoiceEventView: View {
                     VStack(spacing: 16) {
                         if moveRequest != nil { moveCard }
                         else if deleteQuery != nil { deleteCard }
+                        else if drafts.count > 1 { draftPager }
                         else if let draft { summary(for: draft) }
                         else { prompt }
                         typeInstead
@@ -207,7 +226,7 @@ struct VoiceEventView: View {
     @ViewBuilder
     private func summary(for draft: EventDraft) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            if !lastHeard.isEmpty {
+            if !lastHeard.isEmpty && drafts.count <= 1 {
                 Text("I heard: “\(lastHeard)”").font(.footnote).foregroundStyle(.secondary)
             }
             if let copyNote {
@@ -295,6 +314,62 @@ struct VoiceEventView: View {
         }
     }
 
+    // MARK: Swipeable pages
+
+    /// Pages you swipe between, with dots underneath. Plain scroll-snapping (not the
+    /// page-style TabView), so it behaves the same on the phone and the Mac.
+    private func pager<Content: View>(count: Int, @ViewBuilder content: @escaping (Int) -> Content) -> some View {
+        VStack(spacing: 10) {
+            ScrollView(.horizontal) {
+                LazyHStack(alignment: .top, spacing: 16) {
+                    ForEach(0..<count, id: \.self) { index in
+                        content(index)
+                            .containerRelativeFrame(.horizontal)
+                            .id(index)
+                    }
+                }
+                .scrollTargetLayout()
+            }
+            .scrollTargetBehavior(.paging)
+            .scrollPosition(id: $pageID)
+            .scrollIndicators(.hidden)
+
+            HStack(spacing: 6) {
+                ForEach(0..<count, id: \.self) { index in
+                    Circle().fill(index == page ? Color.primary : Color.secondary.opacity(0.3)).frame(width: 7, height: 7)
+                }
+                Text("\(page + 1) of \(count)").font(.caption).foregroundStyle(.secondary).padding(.leading, 6)
+            }
+        }
+    }
+
+    private var draftPager: some View {
+        VStack(spacing: 12) {
+            if !lastHeard.isEmpty {
+                Text("I heard: “\(lastHeard)”").font(.footnote).foregroundStyle(.secondary)
+            }
+            Text("\(drafts.count) events — swipe to review each").font(.headline)
+            pager(count: drafts.count) { index in
+                if drafts.indices.contains(index) { summary(for: drafts[index]) }
+            }
+            let ready = drafts.filter { $0.isComplete }.count
+            Button(action: { addAll() }) {
+                Label("Add All \(drafts.count) Events", systemImage: "checkmark.circle.fill").frame(maxWidth: .infinity).padding(.vertical, 6)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(AppTheme.ultramarine)
+            .disabled(ready != drafts.count)
+            if ready != drafts.count {
+                Text("\(drafts.count - ready) still need details — swipe to them, or say what's missing.").font(.footnote).foregroundStyle(.orange)
+            }
+        }
+    }
+
+    private func addAll() {
+        let all = drafts
+        for item in all where item.isComplete { create(item) }
+    }
+
     private func categoryRow(for draft: EventDraft) -> some View {
         let calendar = targetCalendar(for: draft)
         return HStack(alignment: .firstTextBaseline) {
@@ -332,6 +407,29 @@ struct VoiceEventView: View {
                     Text("Upcoming, \(DateMath.monthDayFormatter.string(from: first.startDate)) – \(DateMath.monthDayFormatter.string(from: last.startDate)). Past events are never included.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
+                if deleteMulti && events.count <= 8 {
+                    pager(count: events.count) { index in
+                        if events.indices.contains(index) {
+                            let event = events[index]
+                            HStack(spacing: 12) {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(AppTheme.calendarColor(for: event.calendar))
+                                    .frame(width: 4, height: 38)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(event.title ?? "Untitled").font(.body.weight(.medium))
+                                    Text(whenText(for: event)).font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer(minLength: 0)
+                                Button(role: .destructive) { delete(event) } label: { Label("Delete", systemImage: "trash") }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(.red)
+                            }
+                            .padding(12)
+                            .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.12)))
+                            .onTapGesture { onFocusDate(event.startDate) }
+                        }
+                    }
+                } else {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(events.prefix(6), id: \.eventIdentifier) { event in
                         HStack(spacing: 8) {
@@ -346,6 +444,7 @@ struct VoiceEventView: View {
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.12)))
+                }
                 Button(role: .destructive) { confirmingMassDelete = true } label: {
                     Label("Delete \(events.count) Events", systemImage: "trash").frame(maxWidth: .infinity).padding(.vertical, 6)
                 }
@@ -407,27 +506,12 @@ struct VoiceEventView: View {
                     .foregroundStyle(.orange)
             } else {
                 Text(moveMulti ? "Move \(moveItems.count) events?" : (moveItems.count == 1 ? "Move this event?" : "Which one should I move?")).font(.headline)
-                ForEach(moveItems) { item in
-                    let new = newTimes(for: item.event, request: item.request)
-                    HStack(spacing: 12) {
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(AppTheme.calendarColor(for: item.event.calendar))
-                            .frame(width: 4, height: 54)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.event.title ?? "Untitled").font(.body.weight(.medium))
-                            Text(whenText(for: item.event)).font(.caption).foregroundStyle(.secondary).strikethrough()
-                            if let new { Text(whenText(start: new.start, end: new.end, allDay: item.event.isAllDay)).font(.caption.weight(.semibold)) }
-                        }
-                        Spacer(minLength: 0)
-                        if !moveMulti {
-                            Button { if let new { move([(item.event, new)]) } } label: { Label("Move", systemImage: "arrow.right") }
-                                .buttonStyle(.borderedProminent)
-                                .disabled(new == nil)
-                        }
+                if moveMulti {
+                    pager(count: moveItems.count) { index in
+                        if moveItems.indices.contains(index) { moveItemCard(moveItems[index]) }
                     }
-                    .padding(12)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.12)))
-                    .onTapGesture { onFocusDate(item.event.startDate) }
+                } else {
+                    ForEach(moveItems) { moveItemCard($0) }
                 }
                 if !moveMissing.isEmpty {
                     Label("Couldn't find: " + moveMissing.joined(separator: ", "), systemImage: "magnifyingglass").font(.footnote).foregroundStyle(.orange)
@@ -444,6 +528,27 @@ struct VoiceEventView: View {
             }
             Button("Not now") { reset() }.buttonStyle(.bordered)
         }
+    }
+
+    private func moveItemCard(_ item: MoveItem) -> some View {
+        let new = newTimes(for: item.event, request: item.request)
+        return HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(AppTheme.calendarColor(for: item.event.calendar))
+                .frame(width: 4, height: 54)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.event.title ?? "Untitled").font(.body.weight(.medium))
+                Text(whenText(for: item.event)).font(.caption).foregroundStyle(.secondary).strikethrough()
+                if let new { Text(whenText(start: new.start, end: new.end, allDay: item.event.isAllDay)).font(.caption.weight(.semibold)) }
+            }
+            Spacer(minLength: 0)
+            Button { if let new { move([(item.event, new)]) } } label: { Label("Move", systemImage: "arrow.right") }
+                .buttonStyle(.borderedProminent)
+                .disabled(new == nil)
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.12)))
+        .onTapGesture { onFocusDate(item.event.startDate) }
     }
 
     private func whenText(start: Date, end: Date, allDay: Bool) -> String {
@@ -553,6 +658,8 @@ struct VoiceEventView: View {
             } else if deleteQuery != nil {
                 // A generic "yes"/"ok" is not enough to delete something.
                 errorMessage = "To delete it, say “delete it” or tap Delete."
+            } else if drafts.count > 1 {
+                if drafts.allSatisfy(\.isComplete) { addAll() } else { errorMessage = "Some events still need details." }
             } else if let draft, draft.isComplete { create(draft) }
         case .confirmDelete:
             if deleteQuery != nil, deleteIsMass {
@@ -580,16 +687,18 @@ struct VoiceEventView: View {
             deleteQuery = nil; deleteCandidates = []; deleteIsMass = false; copyNote = nil
             moveRequest = request
             moveItems = []; moveMulti = false; moveMissing = []
-            func events(for r: VoiceMoveRequest) -> [EKEvent] {
-                r.useSelected ? (contextEvent.map { [$0] } ?? []) : findEvents(for: r.target)
+            func events(for r: VoiceMoveRequest, fuzzy: Bool) -> [EKEvent] {
+                if r.source != nil { return eventsOnSourceDay(for: r) }
+                if r.useSelected { return contextEvent.map { [$0] } ?? eventsOnFocusDay() }
+                return findEvents(for: r.target, fuzzy: fuzzy)
             }
-            let single = events(for: request)
+            let single = events(for: request, fuzzy: request.parts.count < 2)
             if single.isEmpty, request.parts.count >= 2 {
                 // Several events named in one sentence: the best match for each.
                 moveMulti = true
                 var seen = Set<String>()
                 for part in request.parts {
-                    if let event = events(for: part).first {
+                    if let event = events(for: part, fuzzy: true).first {
                         let key = (event.eventIdentifier ?? "") + "\(event.startDate.timeIntervalSince1970)"
                         if seen.insert(key).inserted { moveItems.append(MoveItem(event: event, request: part)) }
                     } else {
@@ -599,7 +708,9 @@ struct VoiceEventView: View {
                 if moveItems.isEmpty { moveMulti = false }
             } else {
                 moveItems = single.prefix(5).map { MoveItem(event: $0, request: request) }
-                if request.useSelected && contextEvent == nil { errorMessage = "Open the event first, or say its name." }
+                if request.useSelected && contextEvent == nil {
+                    errorMessage = single.isEmpty ? "No event on that day — say the event's name." : nil
+                }
             }
             if let first = moveItems.first { onFocusDate(first.event.startDate) }
         case .delete(let request):
@@ -608,13 +719,14 @@ struct VoiceEventView: View {
             deleteQuery = heard
             deleteIsMass = request.isAll
             deleteMulti = false; deleteMissing = []
-            deleteCandidates = findEvents(for: request)
+            // With several names in the sentence the whole phrase must match exactly, or it's split.
+            deleteCandidates = findEvents(for: request, fuzzy: request.splitParts.count < 2)
             if deleteCandidates.isEmpty, request.splitParts.count >= 2 {
                 // "Delete A and B": the best match for each name, all shown before anything goes.
                 var seen = Set<String>()
                 var found: [EKEvent] = []
                 for part in request.splitParts {
-                    let hits = findEvents(for: part)
+                    let hits = findEvents(for: part, fuzzy: true)
                     let chosen = part.isAll ? hits : Array(hits.prefix(1))
                     if chosen.isEmpty { deleteMissing.append(part.titleWords.joined(separator: " ")) }
                     for event in chosen where seen.insert((event.eventIdentifier ?? "") + "\(event.startDate.timeIntervalSince1970)").inserted { found.append(event) }
@@ -630,7 +742,7 @@ struct VoiceEventView: View {
             deleteQuery = nil; deleteCandidates = []; deleteIsMass = false
             moveRequest = nil; moveItems = []
             let words = parser.duplicateTitleWords(from: rest)
-            guard !words.isEmpty, let source = findEvents(for: VoiceDeleteRequest(titleWords: words)).first else {
+            guard !words.isEmpty, let source = findEvents(for: VoiceDeleteRequest(titleWords: words), fuzzy: true).first else {
                 draft = nil; copyNote = nil
                 errorMessage = "I couldn't find an event to copy. Say its name, like “duplicate the Speak Up meeting every Thursday for the rest of the quarter”."
                 return
@@ -649,18 +761,47 @@ struct VoiceEventView: View {
             moveRequest = nil; moveItems = []
             // A new description while a delete was pending abandons it.
             if deleteQuery != nil { deleteQuery = nil; deleteCandidates = []; deleteIsMass = false }
+            if drafts.isEmpty, let many = parser.parseMany(heard) {
+                drafts = many
+                pageID = 0
+                if let start = many.first?.start { onFocusDate(start) }
+                return
+            }
             draft = parser.parse(heard, applying: draft)
             if let start = draft?.start { onFocusDate(start) }
         }
     }
 
-    private func findEvents(for request: VoiceDeleteRequest) -> [EKEvent] {
+    private func findEvents(for request: VoiceDeleteRequest, fuzzy: Bool = true) -> [EKEvent] {
         let now = Date.now
         let from = Calendar.current.date(byAdding: .day, value: -30, to: now) ?? now
         let to = Calendar.current.date(byAdding: .day, value: 365, to: now) ?? now
         let events = eventStore.events(from: from, to: to, in: writableCalendars)
         let refs = events.enumerated().map { EventRef(id: String($0.offset), title: $0.element.title ?? "", start: $0.element.startDate) }
-        return VoiceDeleteMatcher.matches(request, in: refs, now: now).compactMap { Int($0.id).map { events[$0] } }
+        return VoiceDeleteMatcher.matches(request, in: refs, now: now, fuzzy: fuzzy).compactMap { Int($0.id).map { events[$0] } }
+    }
+
+    /// "This event" with nothing open: whatever is on the day the calendar is showing.
+    private func eventsOnFocusDay() -> [EKEvent] {
+        let cal = Calendar.current
+        let day = cal.startOfDay(for: focusDate)
+        let end = cal.date(byAdding: .day, value: 1, to: day) ?? day
+        return Array(eventStore.events(from: day, to: end, in: writableCalendars).prefix(5))
+    }
+
+    /// "Move the event from the 21st to the 20th": the events on the source day, in
+    /// the month the calendar is showing, narrowed by any name that was said.
+    private func eventsOnSourceDay(for request: VoiceMoveRequest) -> [EKEvent] {
+        let cal = Calendar.current
+        guard let source = request.source,
+              let monthStart = cal.dateInterval(of: .month, for: focusDate)?.start,
+              let day = SpokenDateResolver().day(in: source, now: monthStart) else { return [] }
+        let end = cal.date(byAdding: .day, value: 1, to: day) ?? day
+        let onDay = eventStore.events(from: day, to: end, in: writableCalendars)
+        guard !request.target.titleWords.isEmpty else { return Array(onDay.prefix(5)) }
+        let refs = onDay.enumerated().map { EventRef(id: String($0.offset), title: $0.element.title ?? "", start: $0.element.startDate) }
+        let hits = VoiceDeleteMatcher.matches(VoiceDeleteRequest(titleWords: request.target.titleWords), in: refs, now: day, fuzzy: true)
+        return hits.compactMap { Int($0.id).map { onDay[$0] } }
     }
 
     /// Where an event would land under a move request.
@@ -671,6 +812,14 @@ struct VoiceEventView: View {
             return (start, end)
         }
         guard let destination = request.destination else { return nil }
+        // "to the 20th": that day of the event's own month, same time.
+        if let g = destination.range(of: #"^(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)$"#, options: .regularExpression),
+           let number = Int(destination[g].filter(\.isNumber)) {
+            var parts = cal.dateComponents([.year, .month, .hour, .minute], from: event.startDate)
+            parts.day = number
+            guard let start = cal.date(from: parts), cal.component(.day, from: start) == number else { return nil }
+            return (start, start.addingTimeInterval(event.endDate.timeIntervalSince(event.startDate)))
+        }
         var current = EventDraft()
         current.title = event.title ?? ""
         current.start = event.startDate
@@ -714,6 +863,12 @@ struct VoiceEventView: View {
         }
         if failed > 0 { return }
         if let first = plan.first { onFocusDate(first.1.start) }
+        if moveMulti {
+            let moved = Set(plan.map { $0.0.eventIdentifier })
+            moveItems.removeAll { moved.contains($0.event.eventIdentifier) }
+            pageID = min(page, max(moveItems.count - 1, 0))
+            if !moveItems.isEmpty { return }
+        }
         speech.cancel()
         close()
     }
@@ -781,8 +936,12 @@ struct VoiceEventView: View {
                 }
             }
             onFocusDate(start)
-            speech.cancel()
-            close()
+            if let index = drafts.firstIndex(of: draft) { drafts.remove(at: index) }
+            pageID = min(page, max(drafts.count - 1, 0))
+            if drafts.isEmpty {
+                speech.cancel()
+                close()
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
