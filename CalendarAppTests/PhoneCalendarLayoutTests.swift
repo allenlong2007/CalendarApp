@@ -26,11 +26,11 @@ struct PhoneCalendarLayoutTests {
     }
 
     @Test(arguments: 0...6)
-    func landscapeCentersTheFocusedWeek(weekStart: Int) {
+    func landscapeShowsFocusedWeekAndNextWeek(weekStart: Int) {
         let focus = date(2026, 10, 24)
         let current = DateMath.startOfWeek(containing: focus, weekStartDay: weekStart)
         let weeks = PhoneCalendarLayout.weekStarts(around: focus, weekStartDay: weekStart)
-        #expect(weeks == [-1, 0, 1].map { DateMath.addingWeeks($0, to: current) })
+        #expect(weeks == [0, 1].map { DateMath.addingWeeks($0, to: current) })
     }
 
     @Test func pagingCrossesYearBoundariesAndHandlesShortMonths() {
@@ -46,5 +46,14 @@ struct PhoneCalendarLayoutTests {
         let next = CalendarPagePeriod.week.date(at: 1, from: anchor)
         #expect(next == date(2026, 3, 11))
         #expect(CalendarPagePeriod.week.index(of: next, from: anchor, weekStartDay: 0) == 1)
+    }
+
+    @Test func dayPagingCrossesMonthYearAndDaylightSavingBoundaries() {
+        #expect(CalendarPagePeriod.day.date(at: 1, from: date(2026, 12, 31)) == date(2027, 1, 1))
+        #expect(CalendarPagePeriod.day.date(at: -1, from: date(2028, 3, 1)) == date(2028, 2, 29))
+        let start = date(2026, 3, 7)
+        let end = date(2026, 3, 10)
+        #expect(CalendarPagePeriod.day.index(of: end, from: start, weekStartDay: 0) == 3)
+        #expect(CalendarPagePeriod.day.index(of: start, from: end, weekStartDay: 0) == -3)
     }
 }
