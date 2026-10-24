@@ -3,6 +3,19 @@ import Testing
 @testable import CalendarApp
 
 struct VoiceEmailTests {
+    @Test func oauthCallbackRequiresExactRedirectAndMatchingState() throws {
+        let redirect = GoogleOAuthConfig.redirectURI
+        #expect(try GoogleOAuthCallback.code(from: URL(string: redirect + "?state=expected&code=example")!, expectedState: "expected") == "example")
+        #expect(throws: GmailError.self) {
+            try GoogleOAuthCallback.code(from: URL(string: redirect + "?state=wrong&code=example")!, expectedState: "expected")
+        }
+        #expect(throws: GmailError.self) {
+            try GoogleOAuthCallback.code(from: URL(string: redirect + "/other?state=expected&code=example")!, expectedState: "expected")
+        }
+        #expect(throws: GmailError.self) {
+            try GoogleOAuthCallback.code(from: URL(string: redirect + "?state=expected&error=access_denied")!, expectedState: "expected")
+        }
+    }
     @Test func accountCredentialsPreserveIndependentInboxes() throws {
         var credentials = GmailAccountCredentials(storedValue: "legacy-token")
         #expect(credentials.tokens[GmailAccountCredentials.legacyAccount] == "legacy-token")
