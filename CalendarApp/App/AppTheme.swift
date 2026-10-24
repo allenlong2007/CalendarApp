@@ -1,15 +1,15 @@
 import EventKit
 import SwiftUI
 
-/// Central theme constants. The app is always dark, with a fixed Ultramarine
-/// accent (the iPhone 16 "Ultramarine" finish) standing in for Apple Calendar's
-/// red -- both are defined as *fixed* colors in Assets.xcassets (Any Appearance,
-/// not Light/Dark variants), so nothing here needs to branch on color scheme.
+/// Pale sea-glass surfaces and a deep teal accent complement the cloud artwork.
 enum AppTheme {
+    static let canvas = Color(red: 0.91, green: 0.96, blue: 0.95)
+    static let calendarSurface = Color(red: 0.97, green: 0.99, blue: 0.98)
+    // The legacy asset name remains stable for existing calendar color fallbacks.
     static let ultramarine = Color("Ultramarine")
     /// Non-optional fallback for spots that need a CGColor synchronously
     /// (Color.cgColor is optional and best avoided as a force-unwrap).
-    static let ultramarineCGColor: CGColor = CGColor(red: 0.435, green: 0.435, blue: 0.949, alpha: 1)
+    static let ultramarineCGColor: CGColor = CGColor(red: 0.035, green: 0.39, blue: 0.43, alpha: 1)
 
     static func calendarColor(for calendar: EKCalendar?) -> Color {
         guard let cg = calendar?.cgColor else { return ultramarine }
@@ -54,7 +54,7 @@ enum AppTheme {
         // Second set, chosen by measured perceptual distance (CIELAB delta-E)
         // against every swatch above and the completed/overdue colors, not by
         // eye: all at least ~25 apart. Constrained to stay visible on the
-        // always-dark background (no near-black) and to keep clear of the
+        // calendar's tinted surfaces and to keep clear of the
         // green/red zones reserved for status. Mostly earth tones and deeper or
         // more saturated variants of hues the first set already covers --
         // the open hue arcs themselves are used up.

@@ -111,15 +111,30 @@ targets:
     dependencies:
       - target: CalendarApp
 
+  CalendarAppUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: CalendarAppUITests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: CalendarApp
+    dependencies:
+      - target: CalendarApp
+
 schemes:
   CalendarApp:
     build:
       targets:
         CalendarApp: all
         CalendarAppTests: [test]
+        CalendarAppUITests: [test]
     run:
       config: Debug
     test:
       config: Debug
       targets:
         - CalendarAppTests
+        - CalendarAppUITests

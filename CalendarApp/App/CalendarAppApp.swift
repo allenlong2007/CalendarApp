@@ -38,7 +38,7 @@ struct CalendarAppApp: App {
                 .environment(undoManager)
                 .environment(calendarBackground)
                 .environment(sync)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(.light)
                 .tint(AppTheme.ultramarine)
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active {

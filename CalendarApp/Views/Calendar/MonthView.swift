@@ -200,6 +200,115 @@ struct MonthView: View {
     }
 }
 
+/// Phone portrait keeps one month on screen; neighboring dates are blank.
+struct PhoneMonthView: View {
+    let referenceDate: Date
+    let selectedDate: Date
+    let weekStartDay: Int
+    let hiddenCalendarIdentifiers: Set<String>
+    let onSelectDay: (Date) -> Void
+
+    @Environment(EventStoreManager.self) private var eventStore
+    @Query private var completionRows: [EventCompletionStatus]
+
+    var body: some View {
+        let slots = PhoneCalendarLayout.monthSlots(containing: referenceDate, weekStartDay: weekStartDay)
+        let days = slots.compactMap { $0 }
+        let events = days.first.flatMap { first in
+            days.last.map { last in
+                eventStore.events(from: first, to: DateMath.endOfDay(last), in:
+                    eventStore.calendars.filter { !hiddenCalendarIdentifiers.contains($0.calendarIdentifier) })
+            }
+        } ?? []
+        let dayMap = EventDayGrouping.group(events, within: (days.first ?? referenceDate)...(days.last ?? referenceDate))
+        VStack(spacing: 0) {
+            phoneWeekdayHeader(weekStartDay: weekStartDay)
+            GeometryReader { geometry in
+                let height = geometry.size.height / CGFloat(max(1, slots.count / 7))
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 0) {
+                    ForEach(slots.indices, id: \.self) { index in
+                        if let day = slots[index] {
+                            let dayEvents = dayMap[DateMath.startOfDay(day)] ?? []
+                            MonthDayCell(
+                                day: day,
+                                isCurrentMonth: true,
+                                isToday: DateMath.isSameDay(day, .now),
+                                isSelected: DateMath.isSameDay(day, selectedDate),
+                                events: dayEvents,
+                                completionRows: completionRows,
+                                cellHeight: height
+                            )
+                            .onTapGesture { onSelectDay(day) }
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(DateMath.fullDateFormatter.string(from: day))
+                            .accessibilityValue("\(dayEvents.count) events")
+                            .accessibilityAddTraits(.isButton)
+                        } else {
+                            Color.clear.frame(height: height).accessibilityHidden(true)
+                        }
+                    }
+                }
+            }
+        }
+        // Leave all six possible rows above the phone's floating tab bar.
+        .padding(.bottom, 90)
+    }
+}
+
+/// Exactly three rows, with the focused week in the middle. No vertical scroller.
+struct PhoneThreeWeekView: View {
+    let referenceDate: Date
+    let selectedDate: Date
+    let weekStartDay: Int
+    let hiddenCalendarIdentifiers: Set<String>
+    let onSelectDay: (Date) -> Void
+    let onSelectEvent: (EKEvent) -> Void
+    let onAddEvent: (Date) -> Void
+
+    @Environment(EventStoreManager.self) private var eventStore
+    @Query private var completionRows: [EventCompletionStatus]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            phoneWeekdayHeader(weekStartDay: weekStartDay)
+            GeometryReader { geometry in
+                let height = max(0, (geometry.size.height - 2) / 3)
+                VStack(spacing: 1) {
+                    ForEach(PhoneCalendarLayout.weekStarts(around: referenceDate, weekStartDay: weekStartDay), id: \.self) { week in
+                        MonthWeekRow(
+                            weekStart: week,
+                            visibleCalendars: eventStore.calendars.filter { !hiddenCalendarIdentifiers.contains($0.calendarIdentifier) },
+                            selectedDate: selectedDate,
+                            completionRows: completionRows,
+                            cellHeight: height,
+                            onSelectDay: onSelectDay,
+                            onAddEvent: onAddEvent,
+                            onQuickLook: onSelectEvent,
+                            onEditEvent: onSelectEvent
+                        )
+                        .frame(height: height)
+                        .clipped()
+                        .accessibilityElement(children: .contain)
+                        .accessibilityIdentifier("landscapeWeekRow")
+                    }
+                }
+            }
+        }
+    }
+}
+
+private func phoneWeekdayHeader(weekStartDay: Int) -> some View {
+    HStack(spacing: 0) {
+        ForEach(0..<7, id: \.self) { index in
+            Text(DateMath.weekdayHeaderSymbols[(weekStartDay + index) % 7].uppercased())
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+        }
+    }
+    .padding(.vertical, 6)
+}
+
 /// One week of day cells. Fetches only its own seven days, so the lazy list
 /// above only ever loads events for the weeks actually on screen.
 private struct MonthWeekRow: View {
@@ -376,6 +485,7 @@ private struct MonthDayCell: View {
     let isSelected: Bool
     let events: [EKEvent]
     let completionRows: [EventCompletionStatus]
+    var cellHeight: CGFloat = 52
 
     var body: some View {
         VStack(spacing: 3) {
@@ -400,7 +510,7 @@ private struct MonthDayCell: View {
             }
             .frame(height: 6)
         }
-        .frame(maxWidth: .infinity, minHeight: 52)
+        .frame(maxWidth: .infinity, minHeight: cellHeight, maxHeight: cellHeight)
         .contentShape(Rectangle())
     }
 

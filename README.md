@@ -22,7 +22,9 @@ There are Month, Week, Day, and Agenda views, plus a full event editor with loca
 
 ## Calendar background
 
-On Mac and iPhone, open the calendar button → Appearance → Calendar Background to choose an image from Photos or Files, adjust its opacity, or turn it off. The included cloud artwork is enabled by default. Images fill the available space without stretching and crop at the edges as the window size or phone orientation changes. Custom images and appearance settings stay on the device; they do not sync through iCloud.
+The app uses a light seafoam palette with teal controls. On Mac and iPhone, open the calendar button → Appearance → Calendar Background to choose an image from Photos or Files, adjust its opacity, or turn it off. The included cloud artwork is enabled by default. Mac windows fit the full image without cropping, including in full screen. Phone backgrounds fill the screen proportionally. Custom images and appearance settings stay on the device; they do not sync through iCloud.
+
+On iPhone, swipe horizontally to switch months or weeks. Portrait Month shows only that month's dates; tap a date to open its Day view. Landscape shows exactly three weeks around the focused date, with the previous week above and the next week below. Swipe or use the arrows to move by a week, and tap Today to return to the current week.
 
 ## Built with
 
