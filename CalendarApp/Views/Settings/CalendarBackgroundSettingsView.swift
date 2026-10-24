@@ -38,7 +38,7 @@ struct CalendarBackgroundSettingsView: View {
                 .disabled(!background.isEnabled)
             } footer: {
                 #if targetEnvironment(macCatalyst)
-                Text("The full image fits inside the window without stretching or cropping. Lower opacity keeps events easier to read.")
+                Text("The full image stretches with the window to fill every edge without cropping or blank bands. Lower opacity keeps events easier to read.")
                 #else
                 Text("The image fills the calendar without stretching. Edges crop as the window changes. Lower opacity keeps events easier to read.")
                 #endif

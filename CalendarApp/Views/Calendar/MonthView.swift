@@ -255,8 +255,8 @@ struct PhoneMonthView: View {
     }
 }
 
-/// Exactly three rows, with the focused week in the middle. No vertical scroller.
-struct PhoneThreeWeekView: View {
+/// Two complete weeks: the focused week and the following week.
+struct PhoneTwoWeekView: View {
     let referenceDate: Date
     let selectedDate: Date
     let weekStartDay: Int
@@ -272,7 +272,7 @@ struct PhoneThreeWeekView: View {
         VStack(spacing: 0) {
             phoneWeekdayHeader(weekStartDay: weekStartDay)
             GeometryReader { geometry in
-                let height = max(0, (geometry.size.height - 2) / 3)
+                let height = max(0, (geometry.size.height - 1) / 2)
                 VStack(spacing: 1) {
                     ForEach(PhoneCalendarLayout.weekStarts(around: referenceDate, weekStartDay: weekStartDay), id: \.self) { week in
                         MonthWeekRow(
@@ -332,6 +332,8 @@ private struct MonthWeekRow: View {
             in: visibleCalendars
         )
         let dayMap = EventDayGrouping.group(events, within: DateMath.startOfDay(days[0])...DateMath.startOfDay(days[6]))
+        GeometryReader { geometry in
+        let columnWidth = max(0, (geometry.size.width - 6) / 7)
         HStack(spacing: 1) {
             ForEach(days, id: \.self) { day in
                 MonthDayCellWide(
@@ -348,8 +350,12 @@ private struct MonthWeekRow: View {
                     onQuickLook: onQuickLook,
                     onEditEvent: onEditEvent
                 )
+                .frame(width: columnWidth, height: cellHeight)
+                .clipped()
             }
         }
+        }
+        .frame(height: cellHeight)
     }
 }
 
@@ -401,6 +407,10 @@ private struct MonthDayCellWide: View {
                         .animation(Motion.easeOut(0.12), value: isSelected)
                     }
                     .foregroundStyle(isToday ? Color.white : Color.primary)
+                    .accessibilityIdentifier("weekDayNumber")
+                    .accessibilityLabel(DateMath.fullDateFormatter.string(from: day))
+                    .accessibilityAddTraits(.isButton)
+                    .onTapGesture { onSelectDay() }
             }
             .padding(.top, 4)
             .padding(.leading, 4)

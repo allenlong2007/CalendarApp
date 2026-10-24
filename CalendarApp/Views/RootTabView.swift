@@ -1,4 +1,7 @@
 import SwiftUI
+#if targetEnvironment(macCatalyst)
+import UIKit
+#endif
 
 /// Top-level tab structure: real dates live under "Calendar" (with its own
 /// Month/Week/Day/Agenda segmented switch), the imaginary-week scratch
@@ -28,5 +31,31 @@ struct RootTabView: View {
                 .allowsHitTesting(undoManager.pending != nil)
         }
         .animation(.default, value: undoManager.pending != nil)
+        #if targetEnvironment(macCatalyst)
+        .background { FullScreenToolbarConfiguration().frame(width: 0, height: 0) }
+        #endif
     }
 }
+
+#if targetEnvironment(macCatalyst)
+/// Catalyst's tab toolbar otherwise reserves an opaque strip in full screen.
+/// The native toolbar remains available when the pointer reaches the top edge.
+private struct FullScreenToolbarConfiguration: UIViewRepresentable {
+    func makeUIView(context: Context) -> ToolbarConfigurationView { ToolbarConfigurationView() }
+
+    func updateUIView(_ uiView: ToolbarConfigurationView, context: Context) {
+        uiView.configureWindow()
+    }
+
+    final class ToolbarConfigurationView: UIView {
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            configureWindow()
+        }
+
+        func configureWindow() {
+            window?.windowScene?.titlebar?.autoHidesToolbarInFullScreen = true
+        }
+    }
+}
+#endif

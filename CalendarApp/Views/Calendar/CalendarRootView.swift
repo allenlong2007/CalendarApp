@@ -49,6 +49,7 @@ struct CalendarRootView: View {
     private var hiddenCalendarIdentifiers: Set<String> { Set(preferences.hiddenCalendarIdentifiers) }
     private var isPhone: Bool { UIDevice.current.userInterfaceIdiom == .phone }
     private var isPhoneLandscape: Bool { isPhone && verticalSizeClass == .compact }
+    private var showsLandscapeWeeks: Bool { isPhoneLandscape && viewMode != .day }
     private var isWideLayout: Bool { !isPhone && horizontalSizeClass == .regular }
 
     var body: some View {
@@ -91,6 +92,7 @@ struct CalendarRootView: View {
                 }
             }
             .background { CalendarBackgroundView().ignoresSafeArea() }
+            .toolbarBackground(.hidden, for: .navigationBar)
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -218,15 +220,15 @@ struct CalendarRootView: View {
         VStack(spacing: 0) {
             modeSwitcher
             Divider()
-            if isPhoneLandscape {
+            if showsLandscapeWeeks {
                 CalendarPeriodPager(period: .week, referenceDate: selectedDate, weekStartDay: preferences.weekStartDay,
                                     onChangeDate: changePhonePage) { date in
-                    PhoneThreeWeekView(
+                    PhoneTwoWeekView(
                         referenceDate: date,
                         selectedDate: selectedDate,
                         weekStartDay: preferences.weekStartDay,
                         hiddenCalendarIdentifiers: hiddenCalendarIdentifiers,
-                        onSelectDay: changePhonePage,
+                        onSelectDay: showPhoneDay,
                         onSelectEvent: { eventEditorContext = .edit($0) },
                         onAddEvent: { eventEditorContext = .new(defaultDate: $0) }
                     )
@@ -242,10 +244,7 @@ struct CalendarRootView: View {
                             selectedDate: selectedDate,
                             weekStartDay: preferences.weekStartDay,
                             hiddenCalendarIdentifiers: hiddenCalendarIdentifiers,
-                            onSelectDay: { day in
-                                changePhonePage(day)
-                                viewMode = .day
-                            }
+                            onSelectDay: showPhoneDay
                         )
                     }
                 } else {
@@ -293,6 +292,17 @@ struct CalendarRootView: View {
                 )
                 }
             case .day:
+                if isPhone {
+                    CalendarPeriodPager(period: .day, referenceDate: selectedDate, weekStartDay: preferences.weekStartDay,
+                                        onChangeDate: changePhonePage) { date in
+                        DayView(
+                            date: date,
+                            hiddenCalendarIdentifiers: hiddenCalendarIdentifiers,
+                            onSelectEvent: { eventEditorContext = .edit($0) },
+                            onCreateEvent: { eventEditorContext = .new(defaultDate: $0) }
+                        )
+                    }
+                } else {
                 DayView(
                     date: selectedDate,
                     hiddenCalendarIdentifiers: hiddenCalendarIdentifiers,
@@ -304,6 +314,7 @@ struct CalendarRootView: View {
                     // less discoverable double-tap in that case.
                     onPreviewEvent: isWideLayout ? { previewEvent = $0 } : nil
                 )
+                }
             case .agenda:
                 AgendaView(
                     hiddenCalendarIdentifiers: hiddenCalendarIdentifiers,
@@ -316,9 +327,9 @@ struct CalendarRootView: View {
 
     private var modeSwitcher: some View {
         VStack(spacing: 8) {
-            if isPhoneLandscape {
+            if showsLandscapeWeeks {
                 HStack {
-                    Text("Three weeks").font(.subheadline.weight(.semibold))
+                    Text("Two weeks").font(.subheadline.weight(.semibold))
                     Spacer()
                     Button("Today") { goToToday() }
                         .buttonStyle(.bordered)
@@ -353,7 +364,7 @@ struct CalendarRootView: View {
     }
 
     private var title: String {
-        if isPhoneLandscape { return DateMath.monthYearFormatter.string(from: selectedDate) }
+        if showsLandscapeWeeks { return DateMath.monthYearFormatter.string(from: selectedDate) }
         switch viewMode {
         case .month, .week:
             return DateMath.monthYearFormatter.string(from: referenceDate)
@@ -421,7 +432,7 @@ struct CalendarRootView: View {
 
     private func step(_ direction: Int) {
         previewEvent = nil
-        if isPhoneLandscape {
+        if showsLandscapeWeeks {
             changePhonePage(DateMath.addingWeeks(direction, to: selectedDate))
             return
         }
@@ -435,6 +446,7 @@ struct CalendarRootView: View {
             selectedDate = referenceDate
         case .day:
             selectedDate = DateMath.addingDays(direction, to: selectedDate)
+            if isPhone { referenceDate = selectedDate }
         case .agenda:
             break
         }
@@ -444,6 +456,11 @@ struct CalendarRootView: View {
         referenceDate = date
         selectedDate = date
         previewEvent = nil
+    }
+
+    private func showPhoneDay(_ date: Date) {
+        changePhonePage(date)
+        viewMode = .day
     }
 
     /// Fills in any location override this device is missing from what

@@ -12,10 +12,9 @@ struct CalendarBackgroundView: View {
                         Image(uiImage: background.image)
                             .resizable()
                             #if targetEnvironment(macCatalyst)
-                            // Keep the entire illustration visible, including its top,
-                            // at every desktop aspect ratio and under the title bar.
-                            .scaledToFit()
-                            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
+                            // Scale all four image edges to the window bounds. Aspect-fit
+                            // leaves bands; aspect-fill crops the top or bottom on resize.
+                            .frame(width: geometry.size.width, height: geometry.size.height)
                             #else
                             .scaledToFill()
                             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .bottom)
