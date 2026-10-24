@@ -4,6 +4,7 @@ import Foundation
 /// read out of it. Confirming and cancelling are intents too, so the whole flow
 /// can be done hands-free ("delete pickleball practice Thursday" ... "yes").
 enum VoiceIntent: Equatable {
+    case email(VoiceEmailRequest)
     case delete(VoiceDeleteRequest)
     case confirm
     /// "delete it" / "yes delete" -- the only spoken way to confirm a deletion.
@@ -46,6 +47,7 @@ struct VoiceIntentClassifier {
     var quarterEnd: Date?
 
     func classify(_ spoken: String, now: Date = .now) -> VoiceIntent {
+        if let request = VoiceEmailRequest.parse(spoken) { return .email(request) }
         let text = spoken.lowercased()
             .replacingOccurrences(of: #"[.!?,]"#, with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)

@@ -3,11 +3,24 @@ import Testing
 @testable import CalendarApp
 
 struct VoiceEmailTests {
+    @Test func accountCredentialsPreserveIndependentInboxes() throws {
+        var credentials = GmailAccountCredentials(storedValue: "legacy-token")
+        #expect(credentials.tokens[GmailAccountCredentials.legacyAccount] == "legacy-token")
+        credentials.tokens = ["one@gmail.com": "first", "two@gmail.com": "second"]
+        let restored = GmailAccountCredentials(storedValue: try credentials.encoded())
+        #expect(restored.tokens.count == 2)
+        #expect(restored.tokens["two@gmail.com"] == "second")
+        credentials.tokens.removeValue(forKey: "one@gmail.com")
+        #expect(credentials.tokens["two@gmail.com"] == "second")
+        let first = GmailMessageDetail(id: "same", subject: "First", from: "Sender", snippet: "", bodyText: "", internalDate: nil, accountEmail: "one@gmail.com")
+        let second = GmailMessageDetail(id: "same", subject: "Second", from: "Sender", snippet: "", bodyText: "", internalDate: nil, accountEmail: "two@gmail.com")
+        #expect(first.id != second.id)
+    }
     @Test func recognizesEmailCommandsBeforeOrdinaryEvents() throws {
         let intent = VoiceIntentClassifier().classify("Add the event from the email from dentist about my appointment")
         guard case .email(let request) = intent else { Issue.record("Expected email lookup"); return }
         #expect(request.sender == "dentist")
-        #expect(request.topic == "my appointment")
+        #expect(request.topic == "appointment")
         #expect(request.searchQuery?.contains("from:") == true)
         #expect(VoiceIntentClassifier().classify("Email planning meeting tomorrow at 3pm") == .describeEvent)
     }
@@ -53,5 +66,27 @@ struct VoiceEmailTests {
         #expect(drafts.count == 1)
         #expect(drafts[0].repeatRule == nil)
         #expect(drafts[0].title == "Meeting")
+    }
+
+    @Test func pastedHeadersAreNotAppointmentDates() {
+        let message = GmailMessageDetail(id: "1", subject: "Meeting", from: "Office", snippet: "", bodyText: "From: Office\nDate: December 5, 2030 at 2 PM\nSubject: Meeting\n\nLet's meet December 7, 2030 at 3 PM", internalDate: .now)
+        let draft = VoiceEmailDrafts.extract(from: message)[0]
+        #expect(draft.start.map { Calendar.current.component(.day, from: $0) } == 7)
+    }
+
+    @Test func htmlEmailPreservesDateAndLocationLines() {
+        let text = GmailAPIClient.plainText(fromHTML: "<script>Dec 1, 2020</script><p>Appointment: December 5, 2030 at 3 PM</p><div>Location: Main &amp; First</div>")
+        #expect(!text.contains("2020"))
+        #expect(text.contains("\nLocation:"))
+        #expect(text.contains("Main & First"))
+    }
+
+    @Test func senderPronounsAndRelativeEmailDatesUseMessageContext() throws {
+        #expect(VoiceEmailRequest.parse("add event from the email from my dentist")?.sender == "dentist")
+        let calendar = Calendar.current
+        let received = try #require(calendar.date(from: DateComponents(year: 2026, month: 10, day: 20, hour: 8)))
+        let message = GmailMessageDetail(id: "1", subject: "Appointment", from: "Office", snippet: "", bodyText: "Appointment tomorrow at 3 PM", internalDate: received)
+        let draft = VoiceEmailDrafts.extract(from: message)[0]
+        #expect(draft.start.map { calendar.component(.day, from: $0) } == 21)
     }
 }

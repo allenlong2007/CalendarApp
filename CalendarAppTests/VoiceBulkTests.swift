@@ -29,10 +29,11 @@ struct VoiceBulkTests {
     }
 
     @Test func weekdaysAndEveryDay() {
-        let weekdays = parser.parse("gym every weekday at 9:30 am for the next 2 weeks").occurrences()
+        let now = cal.date(from: DateComponents(year: 2026, month: 10, day: 21, hour: 8))!
+        let weekdays = parser.parse("gym every weekday at 9:30 am for the next 2 weeks", now: now).occurrences()
         #expect(weekdays.count == 10 || weekdays.count == 9 || weekdays.count == 8)   // today may already be past
         #expect(weekdays.allSatisfy { (2...6).contains(cal.component(.weekday, from: $0)) })
-        let everyDay = parser.parse("standup every day this week at 10 am").occurrences()
+        let everyDay = parser.parse("standup every day this week at 10 am", now: now).occurrences()
         #expect(!everyDay.isEmpty && everyDay.count <= 7)
     }
 

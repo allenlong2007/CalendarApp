@@ -24,7 +24,13 @@ There are Month, Week, Day, and Agenda views, plus a full event editor with loca
 
 The app uses a light seafoam palette with teal controls. On Mac and iPhone, open the calendar button → Appearance → Calendar Background to choose an image from Photos or Files, adjust its opacity, or turn it off. The included cloud artwork is enabled by default. On Mac, the image stretches to the window bounds so resizing leaves no blank bands or cropped image edges. The native toolbar auto-hides in full screen; move the pointer to the top edge to reveal the Calendar/Planner tabs. Phone backgrounds fill the screen proportionally. Custom images and appearance settings stay on the device; they do not sync through iCloud.
 
-On iPhone, swipe horizontally to switch months, weeks, or individual days. Portrait Month shows only that month's dates. Landscape shows the focused week and the next week in seven equal columns. Tap a date in either orientation to open its Day tab, where horizontal swipes move one day at a time. Swipe or use the arrows in the landscape week grid to move by a week, and tap Today to return to the current week.
+On Mac, the month grid fits three complete weeks to the available height, or two when the grid is shorter than 330 points. Rows stay aligned when resizing.
+
+On iPhone, swipe horizontally to switch months, weeks, or individual days. Portrait Month shows only that month's dates. Rotating into landscape from any calendar tab opens Month with a compact header and the focused week plus the next week, Sunday through Saturday. Tap a date in either orientation to open its Day tab, where horizontal swipes move one day at a time. Swipe or use the arrows in the landscape week grid to move by a week, and tap Today to return to the current week.
+
+Voice accepts commands such as “Add the event from the email from my dentist about my appointment.” With Gmail connected, choose a matching email and review its event details before confirming. You can also paste email text without connecting Gmail. Multiple dates prompt a choice; missing dates or times need clarification rather than using the email's received time.
+
+Gmail supports multiple accounts: connect the first inbox, then use Add Gmail Account for each additional inbox. Voice searches all connected accounts and labels results by inbox. Tokens stay separately in Keychain on each device. The Google Cloud project `calendarapp-512618` has Gmail API enabled and its native public OAuth client configured. The three requested accounts are allowed as test users; each still needs to authorize read-only access in the app. Testing-mode Google authorizations may require reconnecting periodically.
 
 ## Built with
 
@@ -45,7 +51,7 @@ xcodegen generate
 open CalendarApp.xcodeproj
 ```
 
-Needs [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`) and Xcode. Pick the CalendarApp scheme, let it have calendar access, and run it. Gmail import stays off until you drop your own Google API key into `CalendarApp/Gmail/GoogleOAuthConfig.swift`.
+Needs [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`) and Xcode. Pick the CalendarApp scheme, let it have calendar access, and run it. Gmail requires a Google OAuth iOS client ID in `CalendarApp/Gmail/GoogleOAuthConfig.swift` and the Gmail API enabled for its Google Cloud project. The app requests read-only Gmail access; no client secret belongs in the app.
 
 ## Tests
 

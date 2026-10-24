@@ -49,6 +49,7 @@ targets:
           - CFBundleURLName: com.footsoregnu3115.calendarapp.oauth
             CFBundleURLSchemes:
               - com.footsoregnu3115.calendarapp
+              - com.googleusercontent.apps.1056359363976-hg1s4aknnhvonhaf2lem5rgvimrqsi26
         UIBackgroundModes:
           - fetch
         BGTaskSchedulerPermittedIdentifiers:

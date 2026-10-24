@@ -49,7 +49,7 @@ struct CalendarRootView: View {
     private var hiddenCalendarIdentifiers: Set<String> { Set(preferences.hiddenCalendarIdentifiers) }
     private var isPhone: Bool { UIDevice.current.userInterfaceIdiom == .phone }
     private var isPhoneLandscape: Bool { isPhone && verticalSizeClass == .compact }
-    private var showsLandscapeWeeks: Bool { isPhoneLandscape && viewMode != .day }
+    private var showsLandscapeWeeks: Bool { isPhoneLandscape && (viewMode == .month || viewMode == .week) }
     private var isWideLayout: Bool { !isPhone && horizontalSizeClass == .regular }
 
     var body: some View {
@@ -138,8 +138,15 @@ struct CalendarRootView: View {
                     }
                 }
             }
+            .toolbar(isPhoneLandscape ? .hidden : .visible, for: .navigationBar)
         }
         .toolbar(isPhoneLandscape ? .hidden : .visible, for: .tabBar)
+        .onChange(of: isPhoneLandscape) { _, landscape in
+            if landscape {
+                viewMode = .month
+                referenceDate = selectedDate
+            }
+        }
         .task {
             if eventStore.accessStatus == .notDetermined {
                 await eventStore.requestAccess()
@@ -221,7 +228,7 @@ struct CalendarRootView: View {
             modeSwitcher
             Divider()
             if showsLandscapeWeeks {
-                CalendarPeriodPager(period: .week, referenceDate: selectedDate, weekStartDay: preferences.weekStartDay,
+                CalendarPeriodPager(period: .week, referenceDate: selectedDate, weekStartDay: 0,
                                     onChangeDate: changePhonePage) { date in
                     PhoneTwoWeekView(
                         referenceDate: date,
@@ -327,18 +334,30 @@ struct CalendarRootView: View {
 
     private var modeSwitcher: some View {
         VStack(spacing: 8) {
-            if showsLandscapeWeeks {
-                HStack {
-                    Text("Two weeks").font(.subheadline.weight(.semibold))
+            if isPhoneLandscape {
+                HStack(spacing: 10) {
+                    Menu {
+                        Picker("View", selection: $viewMode) {
+                            ForEach(CalendarViewMode.allCases) { mode in Text(mode.rawValue).tag(mode) }
+                        }
+                    } label: { Label(viewMode.rawValue, systemImage: "calendar") }
+                    .accessibilityLabel("Calendar view: \(viewMode.rawValue)")
+                    Text(title).font(.subheadline.weight(.semibold)).lineLimit(1)
                     Spacer()
                     Button("Today") { goToToday() }
-                        .buttonStyle(.bordered)
                     Button { step(-1) } label: { Image(systemName: "chevron.left") }
-                        .accessibilityLabel("Previous week")
+                        .accessibilityLabel(viewMode == .day ? "Previous day" : "Previous week")
                     Button { step(1) } label: { Image(systemName: "chevron.right") }
-                        .accessibilityLabel("Next week")
+                        .accessibilityLabel(viewMode == .day ? "Next day" : "Next week")
+                    voiceButton
+                    Button { eventEditorContext = .new(defaultDate: defaultNewEventDate) } label: { Image(systemName: "plus") }
                 }
-                .padding(.horizontal)
+                .font(.subheadline)
+                .buttonStyle(.borderless)
+                .frame(height: 32)
+                .padding(.horizontal, 8)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("landscapeCalendarHeader")
             } else {
             Picker("View", selection: $viewMode) {
                 ForEach(CalendarViewMode.allCases) { mode in
@@ -360,7 +379,7 @@ struct CalendarRootView: View {
             }
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, isPhoneLandscape ? 2 : 8)
     }
 
     private var title: String {

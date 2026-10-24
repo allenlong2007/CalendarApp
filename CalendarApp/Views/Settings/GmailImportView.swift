@@ -1,11 +1,12 @@
 import EventKit
 import SwiftUI
+import UIKit
 
 struct GmailImportView: View {
     @Environment(EventStoreManager.self) private var eventStore
     @Environment(\.dismiss) private var dismiss
 
-    @State private var oauth = GoogleOAuthService()
+    @State private var oauth = GoogleOAuthService.shared
     @State private var isLoading = false
     @State private var candidates: [GmailEventCandidate] = []
     @State private var selectedIDs: Set<String> = []
@@ -24,10 +25,14 @@ struct GmailImportView: View {
                 } else if !oauth.isSignedIn {
                     signInView
                 } else {
-                    resultsView
+                    VStack(spacing: 0) {
+                        accountsView
+                        resultsView
+                    }
                 }
             }
             .navigationTitle("Import from Gmail")
+            .background(GmailSignInAnchor { oauth.presentationWindow = $0 })
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -40,7 +45,34 @@ struct GmailImportView: View {
                         ?? writableCalendars.first?.calendarIdentifier
                 }
             }
+            .onChange(of: oauth.accounts) { _, _ in
+                candidates = []
+                selectedIDs = []
+            }
+            .onDisappear { oauth.cancelSignIn() }
         }
+    }
+
+    private var accountsView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(oauth.accounts, id: \.self) { account in
+                HStack {
+                    Text(account).font(.subheadline).lineLimit(1)
+                    Spacer()
+                    Button("Disconnect", role: .destructive) {
+                        do { try oauth.signOut(account: account) }
+                        catch { errorMessage = error.localizedDescription }
+                        candidates = []
+                        selectedIDs = []
+                    }.font(.caption).disabled(isLoading)
+                }
+            }
+            Button("Add Gmail Account") { Task { await signIn() } }
+                .disabled(isLoading)
+            Text("Voice searches all connected inboxes. Each account needs its own Google consent.")
+                .font(.caption).foregroundStyle(.secondary)
+            if let errorMessage { Text(errorMessage).font(.caption).foregroundStyle(.red) }
+        }.padding()
     }
 
     private var notConfiguredView: some View {
@@ -61,8 +93,13 @@ struct GmailImportView: View {
                 Button("Connect Gmail") {
                     Task { await signIn() }
                 }
+                .disabled(isLoading)
                 .buttonStyle(.borderedProminent)
                 .tint(AppTheme.ultramarine)
+                if isLoading {
+                    ProgressView("Waiting for Google sign-in…")
+                    Button("Cancel Sign-In") { oauth.cancelSignIn() }
+                }
                 if let errorMessage {
                     Text(errorMessage).font(.caption).foregroundStyle(.red)
                 }
@@ -82,8 +119,6 @@ struct GmailImportView: View {
                     Button("Scan for Events") { Task { await scan() } }
                         .buttonStyle(.borderedProminent)
                         .tint(AppTheme.ultramarine)
-                    Button("Disconnect Gmail", role: .destructive) { oauth.signOut() }
-                        .font(.caption)
                     if let errorMessage {
                         Text(errorMessage).font(.caption).foregroundStyle(.red)
                     }
@@ -110,6 +145,7 @@ struct GmailImportView: View {
                                     Text(candidate.subject)
                                         .foregroundStyle(.primary)
                                         .lineLimit(2)
+                                    Text(candidate.from).font(.caption).foregroundStyle(.secondary)
                                     if let date = candidate.detectedDate {
                                         Text(date.formatted(date: .abbreviated, time: .shortened))
                                             .font(.caption)
@@ -148,6 +184,8 @@ struct GmailImportView: View {
 
     private func signIn() async {
         errorMessage = nil
+        isLoading = true
+        defer { isLoading = false }
         do {
             try await oauth.signIn()
         } catch {
@@ -159,14 +197,24 @@ struct GmailImportView: View {
         errorMessage = nil
         isLoading = true
         defer { isLoading = false }
-        do {
-            let token = try await oauth.validAccessToken()
-            let found = try await GmailEventExtractor.extractCandidates(accessToken: token)
-            candidates = found
-            selectedIDs = Set(found.filter { $0.detectedDate != nil }.map(\.id))
-        } catch {
-            errorMessage = error.localizedDescription
+        let scannedAccounts = oauth.accounts
+        var found: [GmailEventCandidate] = []
+        var failed: [String] = []
+        for account in scannedAccounts {
+            do {
+                let token = try await oauth.validAccessToken(account: account)
+                let matches = try await GmailEventExtractor.extractCandidates(accessToken: token)
+                found.append(contentsOf: matches.map { candidate in
+                    GmailEventCandidate(id: account + ":" + candidate.id, subject: candidate.subject,
+                        from: candidate.from + " · Inbox: " + account, detectedDate: candidate.detectedDate,
+                        sourceSnippet: candidate.sourceSnippet)
+                })
+            } catch { failed.append(account) }
         }
+        guard oauth.accounts == scannedAccounts else { return }
+        candidates = found
+        selectedIDs = Set(found.filter { $0.detectedDate != nil }.map(\.id))
+        if !failed.isEmpty { errorMessage = "Reconnect: \(failed.joined(separator: ", "))" }
     }
 
     private func addSelected() {
@@ -183,5 +231,24 @@ struct GmailImportView: View {
             )
         }
         dismiss()
+    }
+}
+
+/// Catalyst sheets can have a different native window from the calendar.
+/// Present authentication from the window containing the Connect button.
+private struct GmailSignInAnchor: UIViewRepresentable {
+    let resolve: (UIWindow) -> Void
+    func makeUIView(context: Context) -> AnchorView {
+        let view = AnchorView()
+        view.resolve = resolve
+        return view
+    }
+    func updateUIView(_ uiView: AnchorView, context: Context) { uiView.resolve = resolve }
+    final class AnchorView: UIView {
+        var resolve: ((UIWindow) -> Void)?
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            if let window { resolve?(window) }
+        }
     }
 }

@@ -1,20 +1,17 @@
 import Foundation
 
-/// Fill in `clientID` to enable Gmail import. Create it yourself in Google
-/// Cloud Console (console.cloud.google.com): APIs & Services > Credentials >
-/// Create Credentials > OAuth client ID > iOS, using this app's bundle
-/// identifier (com.footsoregnu3115.calendarapp). You'll also need to enable
-/// the Gmail API for the project and add your own Google account as a test
-/// user under OAuth consent screen while the app is unpublished.
+/// Native iOS/Mac Catalyst client in the CalendarApp Google Cloud project.
+/// Gmail API is enabled. While OAuth remains in testing mode, accounts must
+/// be added under Google Auth Platform > Audience before signing in.
 ///
 /// iOS OAuth clients are "public" clients -- they use PKCE instead of a
 /// client secret, so there is no secret to store here or anywhere else.
 enum GoogleOAuthConfig {
-    static let clientID = ""
+    static let clientID = "1056359363976-hg1s4aknnhvonhaf2lem5rgvimrqsi26.apps.googleusercontent.com"
 
-    /// Must match a redirect URI registered for the client above, and the
-    /// URL scheme declared in project.yml's CFBundleURLTypes.
-    static let redirectURI = "com.footsoregnu3115.calendarapp:/oauth2redirect"
+    /// Native Google OAuth uses the reversed client ID as its URL scheme,
+    /// also declared in project.yml's CFBundleURLTypes.
+    static let redirectURI = "com.googleusercontent.apps.1056359363976-hg1s4aknnhvonhaf2lem5rgvimrqsi26:/oauth2redirect"
 
     static let scope = "https://www.googleapis.com/auth/gmail.readonly"
 

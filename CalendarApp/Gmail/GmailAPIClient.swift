@@ -1,18 +1,39 @@
 import Foundation
 
-struct GmailMessageDetail {
-    let id: String
+struct GmailMessageDetail: Identifiable, Sendable {
+    let messageID: String
+    var id: String { (accountEmail ?? "") + ":" + messageID }
     let subject: String
     let from: String
     let snippet: String
     let bodyText: String
     let internalDate: Date?
+    var accountEmail: String? = nil
+
+    init(id: String, subject: String, from: String, snippet: String, bodyText: String, internalDate: Date?, accountEmail: String? = nil) {
+        self.messageID = id
+        self.subject = subject
+        self.from = from
+        self.snippet = snippet
+        self.bodyText = bodyText
+        self.internalDate = internalDate
+        self.accountEmail = accountEmail
+    }
 }
 
 /// Thin wrapper over the Gmail REST API's message list/get endpoints --
 /// read-only, matching the gmail.readonly scope this app requests.
 enum GmailAPIClient {
     private static let base = "https://gmail.googleapis.com/gmail/v1/users/me"
+
+    static func accountEmail(accessToken: String) async throws -> String {
+        var request = URLRequest(url: URL(string: "\(base)/profile")!)
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { throw GmailError.requestFailed }
+        struct Profile: Decodable { let emailAddress: String }
+        return try JSONDecoder().decode(Profile.self, from: data).emailAddress.lowercased()
+    }
 
     static func searchMessages(query: String, accessToken: String, maxResults: Int = 25) async throws -> [String] {
         var components = URLComponents(string: "\(base)/messages")!
@@ -57,13 +78,37 @@ enum GmailAPIClient {
 
     private static func extractPlainText(from part: RawGmailPart?) -> String? {
         guard let part else { return nil }
+        if let plain = findPlainText(in: part) { return plain }
+        if let html = extractHTML(from: part) { return plainText(fromHTML: html) }
+        return nil
+    }
+
+    private static func findPlainText(in part: RawGmailPart) -> String? {
         if part.mimeType == "text/plain", let data = part.body?.data {
-            return decodeBase64URL(data)
+            if let text = decodeBase64URL(data), !text.isEmpty { return text }
         }
         for sub in part.parts ?? [] {
-            if let text = extractPlainText(from: sub) { return text }
+            if let text = findPlainText(in: sub) { return text }
         }
         return nil
+    }
+
+    private static func extractHTML(from part: RawGmailPart) -> String? {
+        if part.mimeType == "text/html", let data = part.body?.data { return decodeBase64URL(data) }
+        for sub in part.parts ?? [] { if let html = extractHTML(from: sub) { return html } }
+        return nil
+    }
+
+    static func plainText(fromHTML html: String) -> String {
+        var text = html.replacingOccurrences(of: #"(?is)<(?:script|style)\b[^>]*>.*?</(?:script|style)>"#, with: "", options: .regularExpression)
+        text = text.replacingOccurrences(of: #"(?i)<br\s*/?>|</(?:p|div|tr|h[1-6])>"#, with: "\n", options: .regularExpression)
+        text = text.replacingOccurrences(of: #"<[^>]+>"#, with: " ", options: .regularExpression)
+        for (entity, value) in [("&nbsp;", " "), ("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"), ("&quot;", "\""), ("&#39;", "'")] {
+            text = text.replacingOccurrences(of: entity, with: value)
+        }
+        return text.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .joined(separator: "\n")
     }
 
     private static func decodeBase64URL(_ string: String) -> String? {

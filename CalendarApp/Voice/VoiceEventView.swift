@@ -59,6 +59,14 @@ struct VoiceEventView: View {
     @State private var lastHeard = ""
     @State private var typed = ""
     @State private var errorMessage: String?
+    @State private var emailRequest: VoiceEmailRequest?
+    @State private var emailMatches: [GmailMessageDetail] = []
+    @State private var emailDateChoices: [EventDraft] = []
+    @State private var emailLoading = false
+    @State private var pastedEmail = ""
+    @State private var emailTask: Task<Void, Never>?
+    @State private var gmailOAuth = GoogleOAuthService.shared
+    @State private var showingGmailConnection = false
     @FocusState private var typing: Bool
 
     private static let panelHeight: CGFloat = 380
@@ -114,7 +122,8 @@ struct VoiceEventView: View {
                     .padding(.bottom, 8)
                 ScrollView {
                     VStack(spacing: 16) {
-                        if moveRequest != nil { moveCard }
+                        if emailRequest != nil { emailCard }
+                        else if moveRequest != nil { moveCard }
                         else if deleteQuery != nil { deleteCard }
                         else if drafts.count > 1 { draftPager }
                         else if let draft { summary(for: draft) }
@@ -149,7 +158,11 @@ struct VoiceEventView: View {
             await speech.requestAccess()
             if speech.access == .granted { speech.start() }
         }
-        .onDisappear { speech.cancel() }
+        .onDisappear { speech.cancel(); emailTask?.cancel() }
+        .sheet(isPresented: $showingGmailConnection, onDismiss: {
+            gmailOAuth = GoogleOAuthService.shared
+            if let request = emailRequest, gmailOAuth.isSignedIn { startEmailLookup(request) }
+        }) { GmailImportView() }
     }
 
     // MARK: - Header (mic + what it's hearing)
@@ -199,6 +212,8 @@ struct VoiceEventView: View {
                 .font(.footnote).foregroundStyle(.secondary)
             Text("“Add study session every Friday at 4 pm for the rest of the quarter.”")
                 .font(.footnote).foregroundStyle(.secondary)
+            Text("“Add the event from the email from my dentist about my appointment.”")
+                .font(.footnote).foregroundStyle(.secondary)
             Text("“Duplicate the Speak Up meeting every Thursday for the rest of the quarter.”")
                 .font(.footnote).foregroundStyle(.secondary)
             Text("“Delete pickleball practice on Thursday” or “delete all pickleball practice.”")
@@ -222,6 +237,112 @@ struct VoiceEventView: View {
     }
 
     // MARK: Add summary
+
+    private var emailCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Event from email").font(.headline)
+            if emailLoading {
+                ProgressView("Looking for matching emails…")
+            } else if !emailDateChoices.isEmpty {
+                Text("Which date in this email? Say first, second, or tap a date.")
+                    .font(.subheadline)
+                ForEach(Array(emailDateChoices.enumerated()), id: \.offset) { index, choice in
+                    Button {
+                        acceptEmailDraft(choice)
+                    } label: {
+                        Text("\(index + 1). \(choice.start?.formatted(date: .abbreviated, time: choice.timeKnown ? .shortened : .omitted) ?? "Date missing")")
+                    }
+                    .buttonStyle(.bordered)
+                }
+            } else {
+                if !emailMatches.isEmpty {
+                    Text("Which email? Say first, second, or tap one.").font(.subheadline)
+                    ForEach(Array(emailMatches.enumerated()), id: \.element.id) { index, message in
+                        Button { chooseEmail(message) } label: {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("\(index + 1). \(message.subject)").font(.subheadline.weight(.medium))
+                                Text(message.from).font(.caption).foregroundStyle(.secondary)
+                                if let inbox = message.accountEmail {
+                                    Text("Inbox: \(inbox)").font(.caption).foregroundStyle(.secondary)
+                                }
+                                if let date = message.internalDate {
+                                    Text(date.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                } else {
+                    Text(emailRequest?.searchQuery == nil
+                         ? "Say who sent the email or words from its subject, or paste the email below."
+                         : "Connect Gmail to search this email, or paste its text below.")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                    Button("Connect Gmail") { showingGmailConnection = true }
+                        .buttonStyle(.bordered)
+                }
+                Text("Or paste an email").font(.subheadline.weight(.semibold))
+                TextEditor(text: $pastedEmail)
+                    .frame(minHeight: 80)
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(.secondary.opacity(0.3)))
+                    .accessibilityLabel("Email text")
+                Button("Use Email Text") {
+                    let text = pastedEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let first = text.components(separatedBy: .newlines).first ?? "Event from email"
+                    chooseEmail(GmailMessageDetail(id: "pasted", subject: String(first.prefix(160)), from: "Pasted email", snippet: "", bodyText: text, internalDate: nil))
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(pastedEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            Button("Cancel") { reset() }.buttonStyle(.bordered)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func clearEmailLookup() {
+        emailTask?.cancel()
+        emailTask = nil
+        emailRequest = nil
+        emailMatches = []
+        emailDateChoices = []
+        emailLoading = false
+        pastedEmail = ""
+    }
+
+    private func startEmailLookup(_ request: VoiceEmailRequest) {
+        emailTask?.cancel()
+        guard let query = request.searchQuery else { return }
+        guard GoogleOAuthConfig.isConfigured, gmailOAuth.isSignedIn else { return }
+        emailLoading = true
+        emailTask = Task {
+            defer { if !Task.isCancelled { emailLoading = false } }
+            do {
+                let result = try await VoiceEmailLookup.findAcrossInboxes(query: query, oauth: gmailOAuth)
+                let messages = result.messages
+                try Task.checkCancellation()
+                guard emailRequest == request else { return }
+                emailMatches = messages
+                if messages.count == 1, let message = messages.first { chooseEmail(message) }
+                else if messages.isEmpty { errorMessage = "No matching emails found. Try another sender or subject, or paste the email." }
+                if !result.failedAccounts.isEmpty {
+                    errorMessage = "Couldn't search: \(result.failedAccounts.joined(separator: ", ")). Reconnect those accounts in Gmail settings."
+                }
+            } catch is CancellationError { }
+            catch { if !Task.isCancelled { errorMessage = error.localizedDescription } }
+        }
+    }
+
+    private func chooseEmail(_ message: GmailMessageDetail) {
+        let choices = VoiceEmailDrafts.extract(from: message)
+        copyNote = "From email: “\(message.subject)” · \(message.from)" + (message.accountEmail.map { " · \($0)" } ?? "")
+        if choices.count == 1, let choice = choices.first { acceptEmailDraft(choice) }
+        else { emailDateChoices = choices }
+    }
+
+    private func acceptEmailDraft(_ choice: EventDraft) {
+        clearEmailLookup()
+        draft = choice
+        if let start = choice.start { onFocusDate(start) }
+    }
 
     @ViewBuilder
     private func summary(for draft: EventDraft) -> some View {
@@ -632,6 +753,7 @@ struct VoiceEventView: View {
     }
 
     private func reset() {
+        clearEmailLookup()
         draft = nil
         deleteQuery = nil
         deleteCandidates = []
@@ -648,7 +770,25 @@ struct VoiceEventView: View {
     private func handle(_ heard: String) {
         lastHeard = heard
         errorMessage = nil
-        switch classifier.classify(heard) {
+        let intent = classifier.classify(heard)
+        if emailRequest != nil, let index = VoiceEmailRequest.selectionIndex(from: heard) {
+            if !emailDateChoices.isEmpty {
+                if emailDateChoices.indices.contains(index) { acceptEmailDraft(emailDateChoices[index]) }
+                else { errorMessage = "Choose one of the dates shown." }
+            } else if emailMatches.indices.contains(index) { chooseEmail(emailMatches[index]) }
+            else { errorMessage = "Choose one of the emails shown." }
+            return
+        }
+        if emailRequest != nil, intent == .confirm {
+            errorMessage = "Choose the email or date first, then review its event before adding it."
+            return
+        }
+        switch intent {
+        case .email(let request):
+            reset()
+            lastHeard = heard
+            emailRequest = request
+            startEmailLookup(request)
         case .confirm:
             if moveRequest != nil {
                 // Moving is undoable, so a plain "yes" is enough -- but only for a single match.
@@ -668,8 +808,9 @@ struct VoiceEventView: View {
             } else if deleteQuery != nil, deleteCandidates.count == 1, let event = deleteCandidates.first { delete(event) }
             else if deleteQuery != nil, deleteCandidates.count > 1 { errorMessage = "More than one event matches — tap the one to delete." }
         case .cancel:
-            if draft != nil || deleteQuery != nil || moveRequest != nil { reset() } else { speech.cancel(); close() }
+            if emailRequest != nil || draft != nil || deleteQuery != nil || moveRequest != nil { reset() } else { speech.cancel(); close() }
         case .move(let request):
+            clearEmailLookup()
             // With a draft on screen, "move it to Friday" is a correction to the draft.
             if var current = draft, let start = current.start {
                 if let shifted = request.shifted(start) {
@@ -714,6 +855,7 @@ struct VoiceEventView: View {
             }
             if let first = moveItems.first { onFocusDate(first.event.startDate) }
         case .delete(let request):
+            clearEmailLookup()
             draft = nil
             moveRequest = nil; moveItems = []
             deleteQuery = heard
@@ -739,6 +881,7 @@ struct VoiceEventView: View {
             else if request.titleWords.isEmpty { errorMessage = "Say which event to delete, by name." }
             if let first = deleteCandidates.first { onFocusDate(first.startDate) }
         case .duplicate(let rest):
+            clearEmailLookup()
             deleteQuery = nil; deleteCandidates = []; deleteIsMass = false
             moveRequest = nil; moveItems = []
             let words = parser.duplicateTitleWords(from: rest)
@@ -757,6 +900,7 @@ struct VoiceEventView: View {
             copyNote = "Copying “\(copy.title)” (\(DateMath.monthDayFormatter.string(from: copy.start)), \(whenTimes(source)))"
             if let start = draft?.start { onFocusDate(start) }
         case .describeEvent:
+            clearEmailLookup()
             copyNote = nil
             moveRequest = nil; moveItems = []
             // A new description while a delete was pending abandons it.

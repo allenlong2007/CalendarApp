@@ -42,8 +42,8 @@ struct CalendarPeriodPager<Content: View>: View {
         .contentMargins(.horizontal, 0, for: .scrollContent)
         .scrollIndicators(.hidden)
         .accessibilityIdentifier("calendarPeriodPager")
-        .scrollTargetBehavior(.paging)
-        .scrollPosition(id: $visiblePage)
+        .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
+        .scrollPosition(id: $visiblePage, anchor: .leading)
         .onScrollPhaseChange { _, phase in
             guard phase == .idle, let page = visiblePage else { return }
             expand(around: page)

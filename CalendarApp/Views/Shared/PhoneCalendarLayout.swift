@@ -1,5 +1,13 @@
 import Foundation
 
+enum CalendarViewportLayout {
+    static func desktopWeekCount(height: Double) -> Int { height < 330 ? 2 : 3 }
+
+    static func rowHeight(height: Double, count: Int) -> Double {
+        max(0, (height - Double(count - 1)) / Double(count))
+    }
+}
+
 enum PhoneCalendarLayout {
     /// Blank slots keep weekday alignment without displaying neighboring months.
     static func monthSlots(containing date: Date, weekStartDay: Int) -> [Date?] {

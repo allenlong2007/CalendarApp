@@ -37,9 +37,6 @@ struct MonthView: View {
 
     private var isWideLayout: Bool { horizontalSizeClass == .regular }
 
-    /// How many week rows fit in the window at once on wide layouts.
-    private static let visibleWeeks: CGFloat = 3
-
     private var gridDays: [Date] { DateMath.monthGridDays(containing: referenceDate, weekStartDay: weekStartDay) }
 
     private var weekdaySymbols: [String] {
@@ -137,7 +134,9 @@ struct MonthView: View {
                 // .navigationBarTitleDisplayMode(.inline), which caused a large
                 // empty gap under the "September 2026" title.
                 GeometryReader { geo in
-                    let cellHeight = max(110, geo.size.height / Self.visibleWeeks)
+                    let visibleWeeks = CalendarViewportLayout.desktopWeekCount(height: geo.size.height)
+                    let cellHeight = CalendarViewportLayout.rowHeight(height: geo.size.height, count: visibleWeeks)
+                    ScrollViewReader { proxy in
                     ScrollView(.vertical) {
                         LazyVStack(spacing: 1) {
                             ForEach(weekStarts, id: \.self) { week in
@@ -160,12 +159,17 @@ struct MonthView: View {
                         .background(Color.secondary.opacity(0.15))
                     }
                     .scrollPosition(id: $topWeek, anchor: .top)
+                    .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
+                    .onChange(of: geo.size) {
+                        if let week = topWeek { proxy.scrollTo(week, anchor: .top) }
+                    }
                     .onAppear { jump() }
                     .onChange(of: jumpToken) { jump() }
                     .onChange(of: topWeek) { _, week in
                         guard let week else { return }
                         // The middle of the three visible weeks.
-                        onVisibleDateChange?(DateMath.addingDays(10, to: week))
+                        onVisibleDateChange?(DateMath.addingDays(visibleWeeks == 3 ? 10 : 3, to: week))
+                    }
                     }
                 }
             } else {
@@ -270,11 +274,11 @@ struct PhoneTwoWeekView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            phoneWeekdayHeader(weekStartDay: weekStartDay)
+            phoneWeekdayHeader(weekStartDay: 0)
             GeometryReader { geometry in
                 let height = max(0, (geometry.size.height - 1) / 2)
                 VStack(spacing: 1) {
-                    ForEach(PhoneCalendarLayout.weekStarts(around: referenceDate, weekStartDay: weekStartDay), id: \.self) { week in
+                    ForEach(PhoneCalendarLayout.weekStarts(around: referenceDate, weekStartDay: 0), id: \.self) { week in
                         MonthWeekRow(
                             weekStart: week,
                             visibleCalendars: eventStore.calendars.filter { !hiddenCalendarIdentifiers.contains($0.calendarIdentifier) },
