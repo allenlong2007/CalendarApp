@@ -27,6 +27,24 @@ enum GmailError: LocalizedError {
     }
 }
 
+enum GoogleOAuthCallback {
+    static func matchesRedirect(_ url: URL) -> Bool {
+        guard let expected = URL(string: GoogleOAuthConfig.redirectURI) else { return false }
+        return url.scheme == expected.scheme && url.host == expected.host && url.path == expected.path
+            && url.user == nil && url.password == nil && url.port == nil
+    }
+
+    static func code(from url: URL, expectedState: String) throws -> String {
+        guard matchesRedirect(url), let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
+              items.filter({ $0.name == "state" }).count == 1,
+              items.first(where: { $0.name == "state" })?.value == expectedState else { throw GmailError.badRedirect }
+        if items.contains(where: { $0.name == "error" }) { throw GmailError.cancelled }
+        guard items.filter({ $0.name == "code" }).count == 1,
+              let code = items.first(where: { $0.name == "code" })?.value, !code.isEmpty else { throw GmailError.noCode }
+        return code
+    }
+}
+
 /// OAuth 2.0 Authorization Code + PKCE flow for Gmail's read-only scope --
 /// the standard flow for a native/public client (no client secret). The
 /// refresh token is the only long-lived credential and lives in the
@@ -41,6 +59,9 @@ final class GoogleOAuthService: NSObject {
     private var credentials = GmailAccountCredentials(storedValue: nil)
     private var accessTokens: [String: (value: String, expiry: Date)] = [:]
     private var webAuthSession: ASWebAuthenticationSession?
+    private var browserContinuation: CheckedContinuation<URL, Error>?
+    private var browserState: String?
+    private(set) var isAuthenticating = false
     private var storageError: Error?
     weak var presentationWindow: UIWindow?
 
@@ -53,7 +74,7 @@ final class GoogleOAuthService: NSObject {
 
     func signIn() async throws {
         if let storageError { throw storageError }
-        guard webAuthSession == nil else { throw GmailError.requestFailed }
+        guard !isAuthenticating else { throw GmailError.requestFailed }
         guard GoogleOAuthConfig.isConfigured else { throw GmailError.notConfigured }
         guard let scheme = URL(string: GoogleOAuthConfig.redirectURI)?.scheme else {
             throw GmailError.badRedirect
@@ -76,7 +97,26 @@ final class GoogleOAuthService: NSObject {
         ]
         guard let authURL = components.url else { throw GmailError.badRedirect }
 
-        defer { webAuthSession = nil }
+        isAuthenticating = true
+        defer {
+            webAuthSession = nil
+            browserContinuation = nil
+            browserState = nil
+            isAuthenticating = false
+        }
+        #if targetEnvironment(macCatalyst)
+        // Use the normal browser on Mac so existing Google sessions are
+        // available. SwiftUI forwards the registered custom-scheme callback.
+        let callbackURL: URL = try await withCheckedThrowingContinuation { continuation in
+            browserContinuation = continuation
+            browserState = state
+            UIApplication.shared.open(authURL, options: [:]) { opened in
+                Task { @MainActor in
+                    if !opened { self.finishBrowserSignIn(.failure(GmailError.requestFailed)) }
+                }
+            }
+        }
+        #else
         let callbackURL: URL = try await withCheckedThrowingContinuation { continuation in
             let session = ASWebAuthenticationSession(url: authURL, callbackURLScheme: scheme) { url, error in
                 if let url {
@@ -94,14 +134,9 @@ final class GoogleOAuthService: NSObject {
             Self.logger.info("Google authorization session started: \(started)")
             if !started { continuation.resume(throwing: GmailError.cancelled) }
         }
+        #endif
 
-        let callbackItems = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?.queryItems
-        guard callbackItems?.first(where: { $0.name == "state" })?.value == state else { throw GmailError.badRedirect }
-        guard let code = callbackItems?.first(where: { $0.name == "code" })?.value
-        else {
-            throw GmailError.noCode
-        }
-
+        let code = try GoogleOAuthCallback.code(from: callbackURL, expectedState: state)
         try await exchangeCodeForTokens(code: code, verifier: verifier)
     }
 
@@ -119,6 +154,22 @@ final class GoogleOAuthService: NSObject {
 
     func cancelSignIn() {
         webAuthSession?.cancel()
+        finishBrowserSignIn(.failure(GmailError.cancelled))
+    }
+
+    func handleCallback(_ url: URL) {
+        guard GoogleOAuthCallback.matchesRedirect(url), let browserState,
+              let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems else { return }
+        // Unsolicited or mismatched callbacks must not consume a pending login.
+        guard items.filter({ $0.name == "state" }).count == 1,
+              items.first(where: { $0.name == "state" })?.value == browserState else { return }
+        finishBrowserSignIn(.success(url))
+    }
+
+    private func finishBrowserSignIn(_ result: Result<URL, Error>) {
+        guard let continuation = browserContinuation else { return }
+        browserContinuation = nil
+        continuation.resume(with: result)
     }
 
     /// Returns a valid access token, transparently refreshing via the stored
@@ -177,6 +228,7 @@ final class GoogleOAuthService: NSObject {
         else { try KeychainTokenStore.save(updated.encoded()) }
         credentials = updated
         accounts = credentials.tokens.keys.sorted()
+        Self.logger.info("Saved Gmail account connections: \(self.accounts.count)")
     }
 
     private func requestToken(params: [String: String]) async throws -> TokenResponse {
@@ -187,6 +239,7 @@ final class GoogleOAuthService: NSObject {
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            Self.logger.error("Google token exchange failed with HTTP status: \((response as? HTTPURLResponse)?.statusCode ?? 0)")
             throw GmailError.tokenExchangeFailed
         }
         return try JSONDecoder().decode(TokenResponse.self, from: data)

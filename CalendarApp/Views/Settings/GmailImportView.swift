@@ -31,12 +31,12 @@ struct GmailImportView: View {
                     }
                 }
             }
-            .navigationTitle("Import from Gmail")
+            .navigationTitle("Gmail Accounts")
             .background(GmailSignInAnchor { oauth.presentationWindow = $0 })
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                    Button("Close") { oauth.cancelSignIn(); dismiss() }
                 }
             }
             .onAppear {
@@ -49,7 +49,8 @@ struct GmailImportView: View {
                 candidates = []
                 selectedIDs = []
             }
-            .onDisappear { oauth.cancelSignIn() }
+            // The system browser may temporarily cover this sheet on Mac.
+            // Cancel only when the user explicitly closes or cancels sign-in.
         }
     }
 

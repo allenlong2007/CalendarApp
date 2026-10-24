@@ -40,6 +40,7 @@ struct CalendarAppApp: App {
                 .environment(sync)
                 .preferredColorScheme(.light)
                 .tint(AppTheme.ultramarine)
+                .onOpenURL { GoogleOAuthService.shared.handleCallback($0) }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active {
                         eventStore.refreshFromSources()

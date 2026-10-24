@@ -63,6 +63,12 @@ struct CalendarListSidebarView: View {
                     }
                 }
 
+                Section("Email") {
+                    Button { showingGmailImport = true } label: {
+                        Label("Gmail Accounts", systemImage: "envelope")
+                    }
+                }
+
                 Section("Appearance") {
                     NavigationLink {
                         CalendarBackgroundSettingsView()
@@ -106,11 +112,6 @@ struct CalendarListSidebarView: View {
                     } label: {
                         Label("Import from Web App", systemImage: "square.and.arrow.down")
                     }
-                    Button {
-                        showingGmailImport = true
-                    } label: {
-                        Label("Import from Gmail", systemImage: "envelope")
-                    }
                 }
             }
             .navigationTitle("Calendars")
@@ -148,7 +149,7 @@ struct CalendarListSidebarView: View {
             .sheet(isPresented: $showingImport) {
                 ImportFromWebAppView()
             }
-            .sheet(isPresented: $showingGmailImport) {
+            .sheet(isPresented: $showingGmailImport, onDismiss: { GoogleOAuthService.shared.cancelSignIn() }) {
                 GmailImportView()
             }
         }

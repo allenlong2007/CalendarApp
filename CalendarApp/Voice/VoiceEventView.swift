@@ -160,6 +160,7 @@ struct VoiceEventView: View {
         }
         .onDisappear { speech.cancel(); emailTask?.cancel() }
         .sheet(isPresented: $showingGmailConnection, onDismiss: {
+            GoogleOAuthService.shared.cancelSignIn()
             gmailOAuth = GoogleOAuthService.shared
             if let request = emailRequest, gmailOAuth.isSignedIn { startEmailLookup(request) }
         }) { GmailImportView() }

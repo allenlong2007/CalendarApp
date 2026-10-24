@@ -32,6 +32,8 @@ Voice accepts commands such as “Add the event from the email from my dentist a
 
 Gmail supports multiple accounts: connect the first inbox, then use Add Gmail Account for each additional inbox. Voice searches all connected accounts and labels results by inbox. Tokens stay separately in Keychain on each device. The Google Cloud project `calendarapp-512618` has Gmail API enabled and its native public OAuth client configured. The three requested accounts are allowed as test users; each still needs to authorize read-only access in the app. Testing-mode Google authorizations may require reconnecting periodically.
 
+Open the calendar button → Gmail Accounts to manage connections directly. On Mac, Google sign-in opens in the normal browser and returns to CalendarApp through its registered callback URL. The app validates the callback state and PKCE exchange before saving an account. On iPhone, sign-in uses the system authentication session.
+
 ## Built with
 
 Swift, SwiftUI, EventKit, SwiftData, WidgetKit, Siri Shortcuts, MapKit, XcodeGen.
