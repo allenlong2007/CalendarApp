@@ -63,6 +63,14 @@ struct CalendarListSidebarView: View {
                     }
                 }
 
+                Section("Appearance") {
+                    NavigationLink {
+                        CalendarBackgroundSettingsView()
+                    } label: {
+                        Label("Calendar Background", systemImage: "photo")
+                    }
+                }
+
                 Section {
                     HStack {
                         Label(syncStatusText, systemImage: syncStatusIcon)

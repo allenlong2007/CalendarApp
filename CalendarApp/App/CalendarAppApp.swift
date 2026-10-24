@@ -9,6 +9,7 @@ struct CalendarAppApp: App {
     let modelContainer: ModelContainer
     @State private var eventStore: EventStoreManager
     @State private var undoManager = UndoManagerService()
+    @State private var calendarBackground = CalendarBackgroundStore()
     @State private var sync: SyncCoordinator
     @Environment(\.scenePhase) private var scenePhase
 
@@ -35,6 +36,7 @@ struct CalendarAppApp: App {
             RootTabView()
                 .environment(eventStore)
                 .environment(undoManager)
+                .environment(calendarBackground)
                 .environment(sync)
                 .preferredColorScheme(.dark)
                 .tint(AppTheme.ultramarine)

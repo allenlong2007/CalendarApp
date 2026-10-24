@@ -443,8 +443,10 @@ private struct SelectedDayEventList: View {
                 } header: {
                     Text(DateMath.fullDateFormatter.string(from: date))
                 }
+                .calendarBackgroundRow()
             }
             .listStyle(.plain)
+            .scrollContentBackground(.hidden)
 
             Button(action: onAddEvent) {
                 Label("Add Event", systemImage: "plus.circle.fill")

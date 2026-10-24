@@ -37,6 +37,7 @@ struct AgendaView: View {
                     systemImage: "calendar",
                     description: Text("Tap + to add your first one.")
                 )
+                .calendarBackgroundRow()
             } else {
                 ForEach(groups, id: \.day) { group in
                     Section(DateMath.fullDateFormatter.string(from: group.day)) {
@@ -52,9 +53,11 @@ struct AgendaView: View {
                             .onTapGesture { onSelectEvent(event) }
                         }
                     }
+                    .calendarBackgroundRow()
                 }
             }
         }
         .listStyle(.plain)
+        .scrollContentBackground(.hidden)
     }
 }

@@ -77,8 +77,10 @@ struct CalendarSidebarView: View {
                             }
                         }
                     }
+                    .calendarBackgroundRow()
                 }
                 .listStyle(.plain)
+                .scrollContentBackground(.hidden)
 
                 Button {
                     onAddEvent(selectedDate)

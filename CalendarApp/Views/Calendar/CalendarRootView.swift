@@ -25,6 +25,7 @@ struct CalendarRootView: View {
     @State private var referenceDate = Date.now
     @State private var selectedDate = Date.now
     @State private var showingCalendarList = false
+    @State private var showingBackgroundSettings = false
     @State private var eventEditorContext: EventEditorContext?
     @State private var showingQuickAdd = false
     @State private var showingVoice = false
@@ -85,6 +86,7 @@ struct CalendarRootView: View {
                     calendarContent
                 }
             }
+            .background { CalendarBackgroundView().ignoresSafeArea() }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -108,6 +110,11 @@ struct CalendarRootView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
+                        Button {
+                            showingBackgroundSettings = true
+                        } label: {
+                            Label("Calendar Background", systemImage: "photo")
+                        }
                         Button {
                             eventEditorContext = .new(defaultDate: defaultNewEventDate)
                         } label: {
@@ -147,6 +154,16 @@ struct CalendarRootView: View {
         .onChange(of: scenePhase) { _, phase in if phase == .active { rollOverIfNewDay() } }
         .sheet(isPresented: $showingCalendarList) {
             CalendarListSidebarView()
+        }
+        .sheet(isPresented: $showingBackgroundSettings) {
+            NavigationStack {
+                CalendarBackgroundSettingsView()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { showingBackgroundSettings = false }
+                        }
+                    }
+            }
         }
         .sheet(item: $eventEditorContext) { context in
             EventEditorView(context: context)

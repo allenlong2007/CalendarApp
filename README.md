@@ -20,6 +20,10 @@ Underneath, it uses Apple's own calendar system, so anything you add syncs throu
 
 There are Month, Week, Day, and Agenda views, plus a full event editor with location search. Planner mode lets you rough out a week before committing to real events. You can mark things done, and undo deletes or changes. Widgets show your next event or the day's schedule on the home screen and lock screen. Siri can add an event or tell you what's next. It runs as an actual Mac app too, not just on iPhone. Everything from my old website calendar got pulled in during a one time import, so switching over didn't lose any history. Gmail import is in there as well, off by default, for catching events buried in email.
 
+## Calendar background
+
+On Mac and iPhone, open the calendar button → Appearance → Calendar Background to choose an image from Photos or Files, adjust its opacity, or turn it off. The included cloud artwork is enabled by default. Images fill the available space without stretching and crop at the edges as the window size or phone orientation changes. Custom images and appearance settings stay on the device; they do not sync through iCloud.
+
 ## Built with
 
 Swift, SwiftUI, EventKit, SwiftData, WidgetKit, Siri Shortcuts, MapKit, XcodeGen.
