@@ -3,6 +3,14 @@ import Testing
 @testable import CalendarApp
 
 struct PhoneCalendarLayoutTests {
+    @Test func desktopRowsFitExactlyAtEveryHeight() {
+        for height in [180.0, 260, 329, 330, 600, 1000] {
+            let count = CalendarViewportLayout.desktopWeekCount(height: height)
+            #expect(count == (height < 330 ? 2 : 3))
+            let row = CalendarViewportLayout.rowHeight(height: height, count: count)
+            #expect(abs(row * Double(count) + Double(count - 1) - height) < 0.001)
+        }
+    }
     private func date(_ year: Int, _ month: Int, _ day: Int) -> Date {
         DateMath.calendar.date(from: DateComponents(year: year, month: month, day: day))!
     }
