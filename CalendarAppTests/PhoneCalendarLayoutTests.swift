@@ -3,6 +3,13 @@ import Testing
 @testable import CalendarApp
 
 struct PhoneCalendarLayoutTests {
+    @Test func desktopScrollSettlesWithoutAdvancingForTinyMovements() {
+        #expect(WeekScrollBehavior.offset(proposed: 330, stride: 300, maximum: 3000) == 300)
+        #expect(WeekScrollBehavior.offset(proposed: 270, stride: 300, maximum: 3000) == 300)
+        #expect(WeekScrollBehavior.offset(proposed: 490, stride: 300, maximum: 3000) == 600)
+        #expect(WeekScrollBehavior.offset(proposed: -90, stride: 300, maximum: 3000) == 0)
+        #expect(WeekScrollBehavior.offset(proposed: 3400, stride: 300, maximum: 3000) == 3000)
+    }
     @Test func desktopRowsFitExactlyAtEveryHeight() {
         for height in [180.0, 260, 329, 330, 600, 1000] {
             let count = CalendarViewportLayout.desktopWeekCount(height: height)

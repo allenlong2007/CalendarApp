@@ -5,6 +5,40 @@ import Testing
 @testable import CalendarApp
 
 @MainActor
+struct CalendarEventCacheTests {
+    @Test func redrawsReuseEventsAndChangesInvalidateThem() {
+        let cache = CalendarEventCache(capacity: 4)
+        let key = CalendarEventCache.Key(start: .distantPast, end: .distantFuture, calendarIdentifiers: ["b", "a"])
+        let reordered = CalendarEventCache.Key(start: .distantPast, end: .distantFuture, calendarIdentifiers: ["a", "b"])
+        var fetches = 0
+        for _ in 0..<50 {
+            _ = cache.events(for: reordered, revision: 1) { fetches += 1; return [] }
+        }
+        _ = cache.events(for: key, revision: 1) { fetches += 1; return [] }
+        #expect(fetches == 1)
+        _ = cache.events(for: key, revision: 2) { fetches += 1; return [] }
+        #expect(fetches == 2)
+        let hiddenCalendar = CalendarEventCache.Key(start: .distantPast, end: .distantFuture, calendarIdentifiers: ["a"])
+        _ = cache.events(for: hiddenCalendar, revision: 2) { fetches += 1; return [] }
+        #expect(fetches == 3)
+    }
+
+    @Test func boundedCacheKeepsRecentlyViewedWeeks() {
+        let cache = CalendarEventCache(capacity: 2)
+        func key(_ day: Double) -> CalendarEventCache.Key {
+            .init(start: Date(timeIntervalSince1970: day), end: .distantFuture, calendarIdentifiers: nil)
+        }
+        var fetches = 0
+        for day in [1.0, 2, 1, 3, 1] {
+            _ = cache.events(for: key(day), revision: 0) { fetches += 1; return [] }
+        }
+        #expect(fetches == 3)
+        _ = cache.events(for: key(2), revision: 0) { fetches += 1; return [] }
+        #expect(fetches == 4)
+    }
+}
+
+@MainActor
 struct CalendarColorOrderTests {
     @Test func groupsHuesAndKeepsNeutralTonesTogether() {
         let store = EKEventStore()
