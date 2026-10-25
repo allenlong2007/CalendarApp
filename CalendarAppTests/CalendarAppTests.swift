@@ -226,3 +226,44 @@ struct WheelScrollMotionTests {
         #expect(abs(distance(hz: 60) - distance(hz: 120)) < 0.001)
     }
 }
+
+@MainActor
+struct WheelScrollRoutingTests {
+    @Test func settlingUsesVisibleRowGeometryAfterManualWheelMovement() {
+        let scroll = UIScrollView(frame: CGRect(x: 0, y: 0, width: 700, height: 600))
+        scroll.contentSize = CGSize(width: 700, height: 2000)
+        let weeks = [day(2026, 10, 18), day(2026, 10, 25), day(2026, 11, 1)]
+        for (index, week) in weeks.enumerated() {
+            let anchor = WeekScrollRowAnchor.AnchorView()
+            anchor.week = week
+            anchor.frame = CGRect(x: 0, y: index * 200, width: 0, height: 0)
+            scroll.addSubview(anchor)
+        }
+        scroll.contentOffset.y = 350
+        #expect(WeekScrollMomentum.ConfigurationView.nearestWeek(in: scroll) == weeks[2])
+        // UIKit may shift content offsets as a lazy stack measures rows.
+        for anchor in scroll.subviews { anchor.frame.origin.y += 500 }
+        scroll.contentOffset.y += 500
+        #expect(WeekScrollMomentum.ConfigurationView.nearestWeek(in: scroll) == weeks[2])
+    }
+
+    @Test func mouseWheelRoutingLeavesTrackpadAndTouchesNativeAndRestoresOnDetach() {
+        let scroll = UIScrollView()
+        scroll.panGestureRecognizer.allowedScrollTypesMask = .all
+        let originalRate = scroll.decelerationRate
+        let configuration = WeekScrollMomentum.ConfigurationView()
+        let originalCount = scroll.gestureRecognizers?.count ?? 0
+        configuration.install(on: scroll)
+        configuration.install(on: scroll)
+        #expect(scroll.panGestureRecognizer.allowedScrollTypesMask == .continuous)
+        #expect(scroll.gestureRecognizers?.count == originalCount + 1)
+        let wheel = scroll.gestureRecognizers?.compactMap { $0 as? UIPanGestureRecognizer }
+            .first { $0 !== scroll.panGestureRecognizer }
+        #expect(wheel?.allowedScrollTypesMask == .discrete)
+        #expect(wheel?.allowedTouchTypes.isEmpty == true)
+        configuration.detach()
+        #expect(scroll.panGestureRecognizer.allowedScrollTypesMask == .all)
+        #expect(scroll.decelerationRate == originalRate)
+        #expect(scroll.gestureRecognizers?.count == originalCount)
+    }
+}
