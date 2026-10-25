@@ -44,3 +44,33 @@ The CPU sample (/private/tmp/calendar-fluid-before.sample.txt) was dominated by
 idle time and accessibility traversal during automated interactions. It is not a
 frame-rate benchmark and does not establish a measured frame-rate improvement.
 Manual scrolling and interaction checks complement deterministic cache tests.
+
+## External mouse-wheel follow-up — 2026-10-25
+
+- Added a discrete-input UIPanGestureRecognizer; the native scroll recognizer
+  retains continuous trackpad input and touch handling. See Apple's
+  [scroll input types](https://developer.apple.com/documentation/uikit/uiscrolltypemask).
+- Wheel deltas feed a bounded, refresh-rate-independent 75 ms exponential glide.
+  Reversing the wheel clears travel in the previous direction. Toolbar jumps,
+  native panning, removal from the window, and representable teardown cancel it.
+- Weak display-link ownership and teardown restore the original native scroll
+  input mask/deceleration. Reduce Motion applies movement without interpolation.
+- Settling resolves the closest instantiated week marker in scroll-view coordinates,
+  avoiding stale SwiftUI row identities after manual contentOffset updates.
+- RED: 162e1cd (motion integrator absent), /private/tmp/calendar-wheel-red.log.
+- Additional RED: f001562 (visible-row settlement absent),
+  /private/tmp/calendar-wheel-settling-red.log.
+- GREEN: 116 tests / 22 suites passed, /private/tmp/calendar-wheel-final-tests.log.
+  Tests cover accumulation, reversal, bounded travel, 60/120 Hz equivalence,
+  input routing, repeated installation, restoring native settings, and choosing
+  the nearest row even after lazy-stack coordinate shifts.
+- Optimized universal Mac Catalyst build passed:
+  /private/tmp/calendar-wheel-final-release.log. Installed app passed deep strict
+  code-signature verification.
+- Live automated scroll input reached the discrete-wheel handler (confirmed in
+  /private/tmp/calendar-wheel-live.log). Initial live testing exposed stale-row
+  settling; the geometry-based regression/fix addresses it. Final live settling
+  check was interrupted when the Mac locked; pending manual unlock.
+- The required Swift reviewer was invoked but declined review because its role
+  requires swift build, which cannot validate this Xcode-only project. Xcode
+  builds, deterministic tests, and local diff review were used for validation.

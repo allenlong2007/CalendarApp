@@ -154,6 +154,11 @@ struct MonthView: View {
                                     onEditEvent: onSelectEvent
                                 )
                                 .frame(height: cellHeight)
+                                .background(alignment: .topLeading) {
+                                    #if targetEnvironment(macCatalyst)
+                                    WeekScrollRowAnchor(week: week).frame(width: 0, height: 0)
+                                    #endif
+                                }
                                 .id(week)
                             }
                         }
@@ -161,7 +166,18 @@ struct MonthView: View {
                         .background(Color.secondary.opacity(0.15))
                         .background {
                             #if targetEnvironment(macCatalyst)
-                            WeekScrollMomentum().frame(width: 0, height: 0)
+                            WeekScrollMomentum(
+                                interruptionToken: jumpToken,
+                                onWheelActivity: { scrollState.isWheelScrolling = $0 },
+                                onWheelFinished: { visibleWeek in
+                                    guard let week = visibleWeek ?? scrollState.topWeek else { return }
+                                    Motion.perform(Motion.easeOut(0.18)) {
+                                        scrollState.topWeek = week
+                                        proxy.scrollTo(week, anchor: .top)
+                                    }
+                                    onVisibleDateChange?(DateMath.addingDays(visibleWeeks == 3 ? 10 : 3, to: week))
+                                }
+                            ).frame(width: 0, height: 0)
                             #endif
                         }
                     }
@@ -169,12 +185,12 @@ struct MonthView: View {
                     .scrollTargetBehavior(.viewAligned(limitBehavior: .never))
                     .onScrollPhaseChange { _, phase in
                         scrollState.isScrolling = phase != .idle
-                        if phase == .idle, let week = scrollState.topWeek {
+                        if phase == .idle, !scrollState.isWheelScrolling, let week = scrollState.topWeek {
                             onVisibleDateChange?(DateMath.addingDays(visibleWeeks == 3 ? 10 : 3, to: week))
                         }
                     }
                     .onChange(of: geo.size) {
-                        if !scrollState.isScrolling, let week = scrollState.topWeek { proxy.scrollTo(week, anchor: .top) }
+                        if !scrollState.isScrolling, !scrollState.isWheelScrolling, let week = scrollState.topWeek { proxy.scrollTo(week, anchor: .top) }
                     }
                     .onAppear { jump() }
                     .onChange(of: jumpToken) { jump() }
@@ -688,4 +704,5 @@ struct EventRow: View {
 private final class MonthScrollState {
     var topWeek: Date?
     var isScrolling = false
+    var isWheelScrolling = false
 }
