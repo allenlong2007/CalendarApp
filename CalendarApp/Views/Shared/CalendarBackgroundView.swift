@@ -9,18 +9,49 @@ struct CalendarBackgroundView: View {
             AppTheme.canvas
                 .overlay {
                     if background.isEnabled {
-                        Image(uiImage: background.image)
-                            .resizable()
+                        Group {
                             #if targetEnvironment(macCatalyst)
-                            // Scale all four image edges to the window bounds. Aspect-fit
-                            // leaves bands; aspect-fill crops the top or bottom on resize.
-                            .frame(width: geometry.size.width, height: geometry.size.height)
+                            // Keep all four image edges at the window bounds.
+                            Image(uiImage: background.image)
+                                .resizable()
+                                .frame(width: geometry.size.width, height: geometry.size.height)
                             #else
-                            .scaledToFill()
-                            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .bottom)
+                            if UIDevice.current.userInterfaceIdiom == .phone,
+                               geometry.size.height > geometry.size.width {
+                                ZStack(alignment: .bottom) {
+                                    // A soft backing fills the space above the smaller
+                                    // artwork without stretching it or adding a hard band.
+                                    Image(uiImage: background.image)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: geometry.size.width, height: geometry.size.height)
+                                        .clipped()
+                                        .blur(radius: 18)
+                                        .opacity(0.35)
+                                    Image(uiImage: background.image)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: geometry.size.width, height: geometry.size.height * 0.86, alignment: .bottom)
+                                        .clipped()
+                                        .mask {
+                                            LinearGradient(stops: [
+                                                .init(color: .clear, location: 0),
+                                                .init(color: .white, location: 0.12),
+                                                .init(color: .white, location: 1)
+                                            ], startPoint: .top, endPoint: .bottom)
+                                        }
+                                }
+                                .frame(width: geometry.size.width, height: geometry.size.height)
+                            } else {
+                                Image(uiImage: background.image)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: geometry.size.width, height: geometry.size.height, alignment: .bottom)
+                            }
                             #endif
-                            .clipped()
-                            .opacity(reduceTransparency ? min(background.opacity, 0.12) : background.opacity)
+                        }
+                        .clipped()
+                        .opacity(reduceTransparency ? min(background.opacity, 0.12) : background.opacity)
                     }
                 }
         }

@@ -76,3 +76,18 @@ Manual scrolling and interaction checks complement deterministic cache tests.
 - The required Swift reviewer was invoked but declined review because its role
   requires swift build, which cannot validate this Xcode-only project. Xcode
   builds, deterministic tests, and local diff review were used for validation.
+
+## iPhone rollout and portrait framing — 2026-10-25
+
+- Portrait iPhones render the foreground artwork at 86% of the previous height,
+  bottom-aligned, with a faded top edge and soft backing to fill the viewport.
+  Landscape, iPad, and Catalyst framing retain their previous geometry.
+- Device Release build and iOS Simulator build passed. Logs:
+  /private/tmp/calendar-phone-latest.log and
+  /private/tmp/calendar-phone-portrait-preview.log.
+- Signed app installed successfully on the connected physical iPhone 16, device
+  00008140-00115584368B001C. devicectl independently listed CalendarApp afterward.
+  Installation result: /private/tmp/calendar-phone-install-result.json.
+- Simulator app-control preview was unavailable because this environment has
+  command-line simulator services but no Simulator.app UI bundle. No visual
+  inspection on the physical phone is claimed.
