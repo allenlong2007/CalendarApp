@@ -96,3 +96,8 @@ Manual scrolling and interaction checks complement deterministic cache tests.
   gentle zoom-out. Device Release build and installation on the same physical
   iPhone 16 succeeded. Logs: /private/tmp/calendar-phone-portrait-80.log and
   /private/tmp/calendar-phone-portrait-80-install.json.
+
+- Further portrait adjustment: foreground height 80% to 74% (7.5% smaller than
+  the prior version). Release build, strict signature verification, and physical
+  iPhone installation succeeded. Logs: /private/tmp/calendar-phone-portrait-74.log
+  and /private/tmp/calendar-phone-portrait-74-install.json.

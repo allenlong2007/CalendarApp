@@ -31,7 +31,7 @@ struct CalendarBackgroundView: View {
                                     Image(uiImage: background.image)
                                         .resizable()
                                         .scaledToFill()
-                                        .frame(width: geometry.size.width, height: geometry.size.height * 0.80, alignment: .bottom)
+                                        .frame(width: geometry.size.width, height: geometry.size.height * 0.74, alignment: .bottom)
                                         .clipped()
                                         .mask {
                                             LinearGradient(stops: [
