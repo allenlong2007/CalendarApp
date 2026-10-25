@@ -1,6 +1,36 @@
 import Foundation
+import EventKit
+import UIKit
 import Testing
 @testable import CalendarApp
+
+@MainActor
+struct CalendarColorOrderTests {
+    @Test func groupsHuesAndKeepsNeutralTonesTogether() {
+        let store = EKEventStore()
+        func category(_ title: String, _ color: UIColor) -> EKCalendar {
+            let calendar = EKCalendar(for: .event, eventStore: store)
+            calendar.title = title
+            calendar.cgColor = color.cgColor
+            return calendar
+        }
+        let calendars = [category("Gray", .gray), category("Blue", .blue),
+                         category("White", .white), category("Red", .red),
+                         category("Green", .green), category("Yellow", .yellow)]
+        #expect(CalendarColorOrder.sorted(calendars).map(\.title) == ["Red", "Yellow", "Green", "Blue", "White", "Gray"])
+    }
+
+    @Test func equalColorsHaveStableAlphabeticalOrder() {
+        let store = EKEventStore()
+        let calendars = ["Work", "Exercise", "Church"].map { title in
+            let calendar = EKCalendar(for: .event, eventStore: store)
+            calendar.title = title
+            calendar.cgColor = UIColor.systemTeal.cgColor
+            return calendar
+        }
+        #expect(CalendarColorOrder.sorted(calendars).map(\.title) == ["Church", "Exercise", "Work"])
+    }
+}
 
 /// Builds a local-midnight date in the same calendar DateMath uses, so these
 /// tests hold in any time zone the simulator happens to be set to.
