@@ -147,3 +147,48 @@ struct GmailDateDetectionTests {
         #expect(parts.year == 2030 && parts.month == 12 && parts.day == 5)
     }
 }
+
+
+@MainActor
+struct CalendarRenderCacheTests {
+    @Test func repeatedRedrawsReuseDayGroupingUntilStoreChanges() {
+        let cache = CalendarEventCache(capacity: 2)
+        let key = CalendarEventCache.Key(start: day(2026, 10, 18), end: day(2026, 10, 25), calendarIdentifiers: nil)
+        var fetches = 0
+        var groupings = 0
+        for _ in 0..<50 {
+            _ = cache.eventsByDay(for: key, revision: 0, load: {
+                fetches += 1
+                return []
+            }, group: { _ in
+                groupings += 1
+                return [:]
+            })
+        }
+        #expect(fetches == 1)
+        #expect(groupings == 1)
+        _ = cache.eventsByDay(for: key, revision: 1, load: { fetches += 1; return [] }, group: { _ in
+            groupings += 1
+            return [:]
+        })
+        #expect(fetches == 2)
+        #expect(groupings == 2)
+    }
+
+    @Test func dayGroupingSharesFetchedEventsAndEvictsWithThem() {
+        let cache = CalendarEventCache(capacity: 1)
+        let store = EKEventStore()
+        let event = EKEvent(eventStore: store)
+        event.startDate = day(2026, 10, 18)
+        event.endDate = day(2026, 10, 20)
+        let key = CalendarEventCache.Key(start: event.startDate, end: event.endDate, calendarIdentifiers: nil)
+        _ = cache.events(for: key, revision: 0) { [event] }
+        let grouped = cache.eventsByDay(for: key, revision: 0, load: { Issue.record("Fetched an already cached range"); return [] })
+        #expect(grouped[day(2026, 10, 18)]?.first === event)
+        #expect(grouped[day(2026, 10, 19)]?.first === event)
+        let other = CalendarEventCache.Key(start: day(2026, 11, 1), end: day(2026, 11, 2), calendarIdentifiers: nil)
+        _ = cache.events(for: other, revision: 0) { [] }
+        let reloaded = cache.eventsByDay(for: key, revision: 0, load: { [] })
+        #expect(reloaded.isEmpty)
+    }
+}
