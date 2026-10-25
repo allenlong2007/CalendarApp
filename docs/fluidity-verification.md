@@ -1,0 +1,46 @@
+# Calendar fluidity verification — 2026-10-24
+
+## Problem and implementation
+
+The previous installation was a Debug Mac Catalyst build. Scroll position lived in
+MonthView state, so changes could regenerate week descriptors and row content.
+Day grouping and per-day sorting were repeated during redraws. Single-click
+handlers competed with double-click handlers. EventStore revision changes and the
+undo-toast animation could animate a large part of the calendar view tree.
+
+The fix isolates scroll position in an observable reference, reuses grouped day
+maps with the existing bounded/revision-aware event cache, and uses the sorted
+query order directly. Single and double taps recognize together within each
+view's gesture, preserving normal child-over-parent precedence. Data invalidation
+is unanimated; selection/completion feedback stays local, and toast animation is
+scoped to the toast. Catalyst deceleration is 0.995 (between normal and fast).
+The installed Mac app uses the optimized Release configuration.
+
+## Regression evidence
+
+- RED checkpoint: a851668. CalendarRenderCacheTests failed compilation because
+  CalendarEventCache.eventsByDay was absent. Log: /private/tmp/calendar-fluid-red.log.
+- GREEN: the complete unit suite passed (111 tests, 20 suites) after implementation.
+  Log: /private/tmp/calendar-fluid-green.log.
+- Regression tests exercise 50 redraws reusing one grouping, revision invalidation,
+  sharing event-query results, overnight coverage, and eviction of derived maps.
+- Final unit run: 111 tests in 20 suites passed. Log:
+  /private/tmp/calendar-fluid-final-tests.log.
+- Optimized universal Mac Catalyst Release build passed. Log:
+  /private/tmp/calendar-fluid-mac-release.log.
+- Installed /Applications/CalendarApp.app; strict deep signature verification passed,
+  and its executable SHA-256 matches the built Release executable.
+- Live checks on October 25: event click retains the preview; double-click opens
+  that event's editor; an empty-day click selects the day; empty-day double-click
+  opens a new draft. Both editors were cancelled without saving changes.
+- Scrolling down/up settles on aligned three-week rows. Month/Week/Day controls
+  switch correctly. The app was left in Month view.
+- Required Swift review found an ancestor/child tap conflict in the initial
+  implementation; combined gestures at each level fixed it and live checks passed.
+
+## Scope and limitations
+
+The CPU sample (/private/tmp/calendar-fluid-before.sample.txt) was dominated by
+idle time and accessibility traversal during automated interactions. It is not a
+frame-rate benchmark and does not establish a measured frame-rate improvement.
+Manual scrolling and interaction checks complement deterministic cache tests.

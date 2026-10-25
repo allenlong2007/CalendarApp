@@ -31,10 +31,9 @@ struct MonthView: View {
     @Query private var completionRows: [EventCompletionStatus]
 
     /// Wide layout: the id (week start) of the row at the top of the window.
-    @State private var topWeek: Date?
+    @State private var scrollState = MonthScrollState()
     @State private var rangeStart: Date?
     @State private var rangeEnd: Date?
-    @State private var isScrolling = false
 
     private var isWideLayout: Bool { horizontalSizeClass == .regular }
 
@@ -100,12 +99,12 @@ struct MonthView: View {
         // Deferred a beat so the rows exist before the scroll is requested. A
         // short hop glides (it tells you where you went); a long one -- Today
         // from months away -- jumps, since gliding through 100 rows just stutters.
-        let distanceInWeeks = topWeek.map { abs(Calendar.current.dateComponents([.day], from: $0, to: target).day ?? 0) / 7 }
+        let distanceInWeeks = scrollState.topWeek.map { abs(Calendar.current.dateComponents([.day], from: $0, to: target).day ?? 0) / 7 }
         DispatchQueue.main.async {
             if let distanceInWeeks, distanceInWeeks <= 8 {
-                Motion.perform(Motion.easeOut(0.3)) { topWeek = target }
+                Motion.perform(Motion.easeOut(0.3)) { scrollState.topWeek = target }
             } else {
-                topWeek = target
+                scrollState.topWeek = target
             }
         }
     }
@@ -138,6 +137,7 @@ struct MonthView: View {
                     let visibleWeeks = CalendarViewportLayout.desktopWeekCount(height: geo.size.height)
                     let cellHeight = CalendarViewportLayout.rowHeight(height: geo.size.height, count: visibleWeeks)
                     let calendars = visibleCalendars
+                    @Bindable var position = scrollState
                     ScrollViewReader { proxy in
                     ScrollView(.vertical) {
                         LazyVStack(spacing: 1) {
@@ -165,24 +165,19 @@ struct MonthView: View {
                             #endif
                         }
                     }
-                    .scrollPosition(id: $topWeek, anchor: .top)
+                    .scrollPosition(id: $position.topWeek, anchor: .top)
                     .scrollTargetBehavior(.viewAligned(limitBehavior: .never))
                     .onScrollPhaseChange { _, phase in
-                        isScrolling = phase != .idle
-                        if phase == .idle, let week = topWeek {
+                        scrollState.isScrolling = phase != .idle
+                        if phase == .idle, let week = scrollState.topWeek {
                             onVisibleDateChange?(DateMath.addingDays(visibleWeeks == 3 ? 10 : 3, to: week))
                         }
                     }
                     .onChange(of: geo.size) {
-                        if !isScrolling, let week = topWeek { proxy.scrollTo(week, anchor: .top) }
+                        if !scrollState.isScrolling, let week = scrollState.topWeek { proxy.scrollTo(week, anchor: .top) }
                     }
                     .onAppear { jump() }
                     .onChange(of: jumpToken) { jump() }
-                    .onChange(of: topWeek) { _, week in
-                        guard !isScrolling, let week else { return }
-                        // The middle of the three visible weeks.
-                        onVisibleDateChange?(DateMath.addingDays(visibleWeeks == 3 ? 10 : 3, to: week))
-                    }
                     }
                 }
             } else {
@@ -343,12 +338,11 @@ private struct MonthWeekRow: View {
 
     var body: some View {
         let days = (0..<7).map { DateMath.addingDays($0, to: weekStart) }
-        let events = eventStore.events(
+        let dayMap = eventStore.eventsByDay(
             from: DateMath.startOfDay(days[0]),
             to: DateMath.endOfDay(days[6]),
             in: visibleCalendars
         )
-        let dayMap = EventDayGrouping.group(events, within: DateMath.startOfDay(days[0])...DateMath.startOfDay(days[6]))
         GeometryReader { geometry in
         let columnWidth = max(0, (geometry.size.width - 6) / 7)
         HStack(spacing: 1) {
@@ -359,7 +353,7 @@ private struct MonthWeekRow: View {
                     showsMonthLabel: DateMath.calendar.component(.day, from: day) == 1,
                     isToday: DateMath.isSameDay(day, .now),
                     isSelected: DateMath.isSameDay(day, selectedDate),
-                    events: (dayMap[DateMath.startOfDay(day)] ?? []).sorted { $0.startDate < $1.startDate },
+                    events: dayMap[DateMath.startOfDay(day)] ?? [],
                     completionRows: completionRows,
                     cellHeight: cellHeight,
                     onSelectDay: { onSelectDay(day) },
@@ -439,8 +433,10 @@ private struct MonthDayCellWide: View {
                         completed: EventCompletionAccess.isCompleted(event, in: completionRows),
                         day: day
                     )
-                    .onTapGesture(count: 2) { onEditEvent(event) }
-                    .onTapGesture(count: 1) { onQuickLook(event) }
+                    .gesture(
+                        TapGesture(count: 2).onEnded { onEditEvent(event) }
+                            .simultaneously(with: TapGesture().onEnded { onQuickLook(event) })
+                    )
                 }
                 if events.count > maxVisibleChips {
                     Text("+\(events.count - maxVisibleChips) more")
@@ -456,8 +452,10 @@ private struct MonthDayCellWide: View {
         .frame(maxWidth: .infinity, minHeight: cellHeight, maxHeight: cellHeight, alignment: .topLeading)
         .background(isAlternateMonth ? Color.secondary.opacity(0.06) : Color.clear)
         .contentShape(Rectangle())
-        .onTapGesture(count: 2) { onAddEvent() }
-        .onTapGesture(count: 1) { onSelectDay() }
+        .gesture(
+            TapGesture(count: 2).onEnded { onAddEvent() }
+                .simultaneously(with: TapGesture().onEnded { onSelectDay() })
+        )
     }
 }
 
@@ -681,4 +679,13 @@ struct EventRow: View {
             MapsLauncher.search(query: resolved.text)
         }
     }
+}
+
+
+/// Scroll position changes each frame. Keeping it in a reference avoids
+/// invalidating MonthView and regenerating all week descriptors each time.
+@MainActor @Observable
+private final class MonthScrollState {
+    var topWeek: Date?
+    var isScrolling = false
 }

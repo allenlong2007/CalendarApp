@@ -29,8 +29,8 @@ struct RootTabView: View {
                 // needs under iOS 26's floating tab bar (see its comment).
                 .padding(.bottom, 90)
                 .allowsHitTesting(undoManager.pending != nil)
+                .animation(Motion.easeOut(0.22), value: undoManager.pending != nil)
         }
-        .animation(.default, value: undoManager.pending != nil)
         #if targetEnvironment(macCatalyst)
         .background { FullScreenToolbarConfiguration().frame(width: 0, height: 0) }
         #endif

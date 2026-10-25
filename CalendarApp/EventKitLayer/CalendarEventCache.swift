@@ -19,7 +19,12 @@ final class CalendarEventCache {
 
     private let capacity: Int
     private var revision: Int?
-    private var results: [Key: [EKEvent]] = [:]
+    private struct Entry {
+        let events: [EKEvent]
+        var days: [Date: [EKEvent]]?
+    }
+
+    private var results: [Key: Entry] = [:]
     private var recent: [Key] = []
 
     init(capacity: Int = 64) { self.capacity = max(1, capacity) }
@@ -33,12 +38,24 @@ final class CalendarEventCache {
         if let cached = results[key] {
             recent.removeAll { $0 == key }
             recent.append(key)
-            return cached
+            return cached.events
         }
         let events = load()
         if recent.count >= capacity { results.removeValue(forKey: recent.removeFirst()) }
-        results[key] = events
+        results[key] = Entry(events: events)
         recent.append(key)
         return events
+    }
+    /// Group once per fetched range, rather than redoing the date arithmetic
+    /// as SwiftUI lays out and selects rows during scrolling.
+    func eventsByDay(
+        for key: Key, revision: Int, load: () -> [EKEvent],
+        group: ([EKEvent]) -> [Date: [EKEvent]] = { EventDayGrouping.group($0) }
+    ) -> [Date: [EKEvent]] {
+        let events = events(for: key, revision: revision, load: load)
+        if let days = results[key]?.days { return days }
+        let days = group(events)
+        results[key]?.days = days
+        return days
     }
 }

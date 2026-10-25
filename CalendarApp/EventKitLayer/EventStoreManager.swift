@@ -104,11 +104,23 @@ final class EventStoreManager {
         let key = CalendarEventCache.Key(start: startDate, end: endDate,
             calendarIdentifiers: calendars?.map(\.calendarIdentifier))
         return eventCache.events(for: key, revision: revision) {
-            let predicate = store.predicateForEvents(withStart: startDate, end: endDate, calendars: calendars)
-            return store.events(matching: predicate)
-                .filter { $0.calendar?.title != Self.syncCalendarTitle }
-                .sorted { $0.startDate < $1.startDate }
+            loadEvents(from: startDate, to: endDate, in: calendars)
         }
+    }
+
+    func eventsByDay(from start: Date, to end: Date, in calendars: [EKCalendar]? = nil) -> [Date: [EKEvent]] {
+        let key = CalendarEventCache.Key(start: start, end: end,
+            calendarIdentifiers: calendars?.map(\.calendarIdentifier))
+        return eventCache.eventsByDay(for: key, revision: externalChangeToken) {
+            loadEvents(from: start, to: end, in: calendars)
+        }
+    }
+
+    private func loadEvents(from start: Date, to end: Date, in calendars: [EKCalendar]?) -> [EKEvent] {
+        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: calendars)
+        return store.events(matching: predicate)
+            .filter { $0.calendar?.title != Self.syncCalendarTitle }
+            .sorted { $0.startDate < $1.startDate }
     }
 
     @discardableResult
@@ -167,11 +179,9 @@ final class EventStoreManager {
     /// the EKEventStoreChanged round-trip (debounced, and only meant to catch
     /// changes made outside this screen, e.g. in Apple's own Calendar app).
     private func bumpChangeToken() {
-        // Our own saves and deletes: a short fade so a new event visibly lands
-        // (and a deleted one visibly leaves) instead of popping in. Not the
-        // external-change path in storeChanged() -- background syncs shouldn't
-        // animate.
-        Motion.perform(Motion.easeOut(0.2)) { externalChangeToken += 1 }
+        // Invalidate data without animating the entire calendar graph. Views
+        // animate their own selection/completion feedback locally.
+        externalChangeToken += 1
         WidgetCenter.shared.reloadAllTimelines()
     }
 

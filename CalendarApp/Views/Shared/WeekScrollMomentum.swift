@@ -22,7 +22,8 @@ struct WeekScrollMomentum: UIViewRepresentable {
             var ancestor = superview
             while let view = ancestor {
                 if let scrollView = view as? UIScrollView {
-                    scrollView.decelerationRate = .fast
+                    // Between normal (long coasting) and fast (an abrupt stop).
+                    scrollView.decelerationRate = UIScrollView.DecelerationRate(rawValue: 0.995)
                     return
                 }
                 ancestor = view.superview
