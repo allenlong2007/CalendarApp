@@ -32,6 +32,7 @@ final class EventStoreManager {
     private(set) var externalChangeToken = 0
 
     private var debounceTask: Task<Void, Never>?
+    @ObservationIgnored private let eventCache = CalendarEventCache()
 
     init() {
         accessStatus = Self.currentStatus()
@@ -99,11 +100,15 @@ final class EventStoreManager {
     /// choke point that keeps Month/Week/Day/Agenda live without each view
     /// needing to know about the token itself.
     func events(from startDate: Date, to endDate: Date, in calendars: [EKCalendar]? = nil) -> [EKEvent] {
-        _ = externalChangeToken
-        let predicate = store.predicateForEvents(withStart: startDate, end: endDate, calendars: calendars)
-        return store.events(matching: predicate)
-            .filter { $0.calendar?.title != Self.syncCalendarTitle }
-            .sorted { $0.startDate < $1.startDate }
+        let revision = externalChangeToken
+        let key = CalendarEventCache.Key(start: startDate, end: endDate,
+            calendarIdentifiers: calendars?.map(\.calendarIdentifier))
+        return eventCache.events(for: key, revision: revision) {
+            let predicate = store.predicateForEvents(withStart: startDate, end: endDate, calendars: calendars)
+            return store.events(matching: predicate)
+                .filter { $0.calendar?.title != Self.syncCalendarTitle }
+                .sorted { $0.startDate < $1.startDate }
+        }
     }
 
     @discardableResult

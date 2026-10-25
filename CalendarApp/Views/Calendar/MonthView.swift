@@ -34,6 +34,7 @@ struct MonthView: View {
     @State private var topWeek: Date?
     @State private var rangeStart: Date?
     @State private var rangeEnd: Date?
+    @State private var isScrolling = false
 
     private var isWideLayout: Bool { horizontalSizeClass == .regular }
 
@@ -136,13 +137,14 @@ struct MonthView: View {
                 GeometryReader { geo in
                     let visibleWeeks = CalendarViewportLayout.desktopWeekCount(height: geo.size.height)
                     let cellHeight = CalendarViewportLayout.rowHeight(height: geo.size.height, count: visibleWeeks)
+                    let calendars = visibleCalendars
                     ScrollViewReader { proxy in
                     ScrollView(.vertical) {
                         LazyVStack(spacing: 1) {
                             ForEach(weekStarts, id: \.self) { week in
                                 MonthWeekRow(
                                     weekStart: week,
-                                    visibleCalendars: visibleCalendars,
+                                    visibleCalendars: calendars,
                                     selectedDate: selectedDate,
                                     completionRows: completionRows,
                                     cellHeight: cellHeight,
@@ -157,16 +159,27 @@ struct MonthView: View {
                         }
                         .scrollTargetLayout()
                         .background(Color.secondary.opacity(0.15))
+                        .background {
+                            #if targetEnvironment(macCatalyst)
+                            WeekScrollMomentum().frame(width: 0, height: 0)
+                            #endif
+                        }
                     }
                     .scrollPosition(id: $topWeek, anchor: .top)
-                    .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
+                    .scrollTargetBehavior(.viewAligned(limitBehavior: .never))
+                    .onScrollPhaseChange { _, phase in
+                        isScrolling = phase != .idle
+                        if phase == .idle, let week = topWeek {
+                            onVisibleDateChange?(DateMath.addingDays(visibleWeeks == 3 ? 10 : 3, to: week))
+                        }
+                    }
                     .onChange(of: geo.size) {
-                        if let week = topWeek { proxy.scrollTo(week, anchor: .top) }
+                        if !isScrolling, let week = topWeek { proxy.scrollTo(week, anchor: .top) }
                     }
                     .onAppear { jump() }
                     .onChange(of: jumpToken) { jump() }
                     .onChange(of: topWeek) { _, week in
-                        guard let week else { return }
+                        guard !isScrolling, let week else { return }
                         // The middle of the three visible weeks.
                         onVisibleDateChange?(DateMath.addingDays(visibleWeeks == 3 ? 10 : 3, to: week))
                     }
