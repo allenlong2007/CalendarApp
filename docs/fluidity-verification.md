@@ -70,7 +70,9 @@ Manual scrolling and interaction checks complement deterministic cache tests.
 - Live automated scroll input reached the discrete-wheel handler (confirmed in
   /private/tmp/calendar-wheel-live.log). Initial live testing exposed stale-row
   settling; the geometry-based regression/fix addresses it. Final live settling
-  check was interrupted when the Mac locked; pending manual unlock.
+  checks passed after unlock: the calendar retained the new November 1 top week
+  after a downward wheel scroll, then returned to October 25 after reversing.
+  Both positions showed three complete aligned weeks without snapping back.
 - The required Swift reviewer was invoked but declined review because its role
   requires swift build, which cannot validate this Xcode-only project. Xcode
   builds, deterministic tests, and local diff review were used for validation.
