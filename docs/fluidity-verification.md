@@ -101,3 +101,10 @@ Manual scrolling and interaction checks complement deterministic cache tests.
   the prior version). Release build, strict signature verification, and physical
   iPhone installation succeeded. Logs: /private/tmp/calendar-phone-portrait-74.log
   and /private/tmp/calendar-phone-portrait-74-install.json.
+
+- Portrait top-edge refinement: reduced foreground height 74% to 70%, removed
+  the enlarged blurred duplicate, and extended the fade into the canvas to 26%
+  of the image height using gradual opacity stops. Device Release build, strict
+  signature check, and physical iPhone installation passed. Logs:
+  /private/tmp/calendar-phone-portrait-blend.log and
+  /private/tmp/calendar-phone-portrait-blend-install.json.

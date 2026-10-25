@@ -18,30 +18,23 @@ struct CalendarBackgroundView: View {
                             #else
                             if UIDevice.current.userInterfaceIdiom == .phone,
                                geometry.size.height > geometry.size.width {
-                                ZStack(alignment: .bottom) {
-                                    // A soft backing fills the space above the smaller
-                                    // artwork without stretching it or adding a hard band.
-                                    Image(uiImage: background.image)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: geometry.size.width, height: geometry.size.height)
-                                        .clipped()
-                                        .blur(radius: 18)
-                                        .opacity(0.35)
-                                    Image(uiImage: background.image)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: geometry.size.width, height: geometry.size.height * 0.74, alignment: .bottom)
-                                        .clipped()
-                                        .mask {
-                                            LinearGradient(stops: [
-                                                .init(color: .clear, location: 0),
-                                                .init(color: .white, location: 0.12),
-                                                .init(color: .white, location: 1)
-                                            ], startPoint: .top, endPoint: .bottom)
-                                        }
-                                }
-                                .frame(width: geometry.size.width, height: geometry.size.height)
+                                // Blend the artwork into the canvas instead of
+                                // showing a second, enlarged copy above it.
+                                Image(uiImage: background.image)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: geometry.size.width, height: geometry.size.height * 0.70, alignment: .bottom)
+                                    .clipped()
+                                    .mask {
+                                        LinearGradient(stops: [
+                                            .init(color: .clear, location: 0),
+                                            .init(color: .white.opacity(0.12), location: 0.06),
+                                            .init(color: .white.opacity(0.55), location: 0.14),
+                                            .init(color: .white, location: 0.26),
+                                            .init(color: .white, location: 1)
+                                        ], startPoint: .top, endPoint: .bottom)
+                                    }
+                                    .frame(width: geometry.size.width, height: geometry.size.height, alignment: .bottom)
                             } else {
                                 Image(uiImage: background.image)
                                     .resizable()
