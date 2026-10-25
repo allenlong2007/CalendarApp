@@ -192,3 +192,37 @@ struct CalendarRenderCacheTests {
         #expect(reloaded.isEmpty)
     }
 }
+
+struct WheelScrollMotionTests {
+    @Test func wheelStepsGlideAndAccumulateWithoutOvershooting() {
+        var motion = WheelScrollMotion()
+        motion.enqueue(60, limit: 300)
+        let first = motion.advance(by: 1.0 / 60)
+        #expect(first > 0 && first < 60)
+        motion.enqueue(60, limit: 300)
+        var travel = first
+        for _ in 0..<120 { travel += motion.advance(by: 1.0 / 60) }
+        #expect(abs(travel - 120) < 0.001)
+        #expect(!motion.isActive)
+    }
+
+    @Test func reversingDirectionDropsOldMomentumAndLimitsSensitivity() {
+        var motion = WheelScrollMotion()
+        motion.enqueue(1000, limit: 200)
+        #expect(motion.remaining == 200)
+        motion.enqueue(-30, limit: 200)
+        #expect(motion.remaining == -30)
+        #expect(motion.advance(by: 1.0 / 60) < 0)
+        motion.cancel()
+        #expect(!motion.isActive)
+    }
+
+    @Test func movementIsIndependentOfDisplayRefreshRate() {
+        func distance(hz: Double) -> Double {
+            var motion = WheelScrollMotion()
+            motion.enqueue(120, limit: 300)
+            return (0..<Int(hz / 5)).reduce(0) { sum, _ in sum + motion.advance(by: 1 / hz) }
+        }
+        #expect(abs(distance(hz: 60) - distance(hz: 120)) < 0.001)
+    }
+}
