@@ -1,5 +1,27 @@
 import EventKit
 import SwiftUI
+import UIKit
+
+/// Presentation order only: warm hues through cool hues, then neutrals.
+/// Calendar colors and EventKit's underlying order remain unchanged.
+enum CalendarColorOrder {
+    static func sorted(_ calendars: [EKCalendar]) -> [EKCalendar] {
+        let entries = calendars.map { calendar in
+            var hue: CGFloat = 0
+            var saturation: CGFloat = 0
+            var brightness: CGFloat = 0
+            UIColor(cgColor: calendar.cgColor).getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: nil)
+            let neutral = saturation < 0.08
+            return (calendar: calendar, tone: (neutral ? 1 : 0, neutral ? 0 : hue, -brightness, -saturation))
+        }
+        return entries.sorted { left, right in
+            if left.tone != right.tone { return left.tone < right.tone }
+            let titleOrder = left.calendar.title.localizedCaseInsensitiveCompare(right.calendar.title)
+            if titleOrder != .orderedSame { return titleOrder == .orderedAscending }
+            return left.calendar.calendarIdentifier < right.calendar.calendarIdentifier
+        }.map(\.calendar)
+    }
+}
 
 /// Pale sea-glass surfaces and a deep teal accent complement the cloud artwork.
 enum AppTheme {

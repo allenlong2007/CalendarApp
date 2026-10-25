@@ -23,7 +23,7 @@ struct CalendarListSidebarView: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach(eventStore.calendars, id: \.calendarIdentifier) { calendar in
+                ForEach(eventStore.calendarsByColor, id: \.calendarIdentifier) { calendar in
                     HStack {
                         // Visibility toggle and edit are sibling Buttons, not a
                         // row-wide tap gesture with a Button inside it -- there,

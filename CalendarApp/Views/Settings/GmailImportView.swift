@@ -129,7 +129,7 @@ struct GmailImportView: View {
             List {
                 Section("Add to Calendar") {
                     Picker("Calendar", selection: $selectedCalendarIdentifier) {
-                        ForEach(writableCalendars, id: \.calendarIdentifier) { calendar in
+                        ForEach(CalendarColorOrder.sorted(writableCalendars), id: \.calendarIdentifier) { calendar in
                             Text(calendar.title).tag(Optional(calendar.calendarIdentifier))
                         }
                     }

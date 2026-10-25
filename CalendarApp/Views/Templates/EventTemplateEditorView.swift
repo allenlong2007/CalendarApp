@@ -55,7 +55,7 @@ struct EventTemplateEditorView: View {
                                 .foregroundStyle(.primary)
                         }
                         .buttonStyle(.plain)
-                        ForEach(writableCalendars, id: \.calendarIdentifier) { calendar in
+                        ForEach(CalendarColorOrder.sorted(writableCalendars), id: \.calendarIdentifier) { calendar in
                             CategoryChip(
                                 calendar: calendar,
                                 isSelected: categoryIdentifier == calendar.calendarIdentifier

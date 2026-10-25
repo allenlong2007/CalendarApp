@@ -185,7 +185,7 @@ struct EventEditorView: View {
 
                 Section("Category") {
                     FlowLayout(spacing: 8) {
-                        ForEach(writableCalendars, id: \.calendarIdentifier) { calendar in
+                        ForEach(CalendarColorOrder.sorted(writableCalendars), id: \.calendarIdentifier) { calendar in
                             CategoryChip(
                                 calendar: calendar,
                                 isSelected: selectedCalendarIdentifier == calendar.calendarIdentifier

@@ -88,6 +88,8 @@ final class EventStoreManager {
         return store.calendars(for: .event).filter { $0.title != Self.syncCalendarTitle }
     }
 
+    var calendarsByColor: [EKCalendar] { CalendarColorOrder.sorted(calendars) }
+
     // MARK: - Events
 
     /// Reading `externalChangeToken` here (even though its value is unused) is
