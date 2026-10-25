@@ -91,3 +91,8 @@ Manual scrolling and interaction checks complement deterministic cache tests.
 - Simulator app-control preview was unavailable because this environment has
   command-line simulator services but no Simulator.app UI bundle. No visual
   inspection on the physical phone is claimed.
+
+- Portrait follow-up: reduced foreground height from 86% to 80% for a further
+  gentle zoom-out. Device Release build and installation on the same physical
+  iPhone 16 succeeded. Logs: /private/tmp/calendar-phone-portrait-80.log and
+  /private/tmp/calendar-phone-portrait-80-install.json.
