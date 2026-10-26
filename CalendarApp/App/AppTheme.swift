@@ -10,7 +10,8 @@ enum CalendarColorOrder {
             var hue: CGFloat = 0
             var saturation: CGFloat = 0
             var brightness: CGFloat = 0
-            UIColor(cgColor: calendar.cgColor).getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: nil)
+            // EventKit's cgColor is an implicitly unwrapped optional; a calendar without one sorts as neutral.
+            if let cg = calendar.cgColor { UIColor(cgColor: cg).getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: nil) }
             let neutral = saturation < 0.08
             return (calendar: calendar, tone: (neutral ? 1 : 0, neutral ? 0 : hue, -brightness, -saturation))
         }
