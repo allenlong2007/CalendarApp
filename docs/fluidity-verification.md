@@ -108,3 +108,217 @@ Manual scrolling and interaction checks complement deterministic cache tests.
   signature check, and physical iPhone installation passed. Logs:
   /private/tmp/calendar-phone-portrait-blend.log and
   /private/tmp/calendar-phone-portrait-blend-install.json.
+
+- Portrait framing follow-up (2026-10-25): reduced artwork height from 70% to
+  58% of the viewport, about 17% smaller than the previous framing. Retained
+  bottom alignment and the existing top fade. Device Release and iPhone 16
+  Simulator builds passed; strict deep signature verification and installation
+  on the physical iPhone 16 succeeded, and the updated app launched. Inspected
+  the simulator portrait screenshot at /private/tmp/calendar-portrait-framing-after.png.
+  Build logs: /private/tmp/calendar-portrait-framing-build.log and
+  /private/tmp/calendar-portrait-framing-sim.log. Install result:
+  /private/tmp/calendar-portrait-framing-install.json. Physical-phone visual
+  approval remains with the user.
+
+- Tab-bar clearance follow-up: kept the 58% portrait scale and raised the
+  artwork 96 pt, with a short bottom fade into the canvas. iPhone 16 simulator
+  screenshot confirms both characters are fully above the Calendar/Planner bar
+  (/private/tmp/calendar-portrait-clearance.png). Simulator and device Release
+  builds passed; strict signature verification and physical iPhone installation
+  succeeded. Logs: /private/tmp/calendar-portrait-clearance-build.log,
+  /private/tmp/calendar-portrait-clearance-sim.log, and
+  /private/tmp/calendar-portrait-clearance-install.json.
+
+- Subtler placement: reduced portrait bottom clearance from 96 pt to 76 pt
+  while retaining the same scale and fades. Device Release and simulator builds,
+  strict signature verification, and physical iPhone installation/launch passed.
+  Logs: /private/tmp/calendar-portrait-subtle-build.log,
+  /private/tmp/calendar-portrait-subtle-sim.log, and
+  /private/tmp/calendar-portrait-subtle-install.json.
+
+- Cloud/sky visibility: shortened the top fade from 26% to 7% of artwork
+  height, keeping the 58% scale and 76 pt lift. Device Release and simulator
+  builds, strict signature verification, and physical iPhone installation and
+  launch passed. Logs: /private/tmp/calendar-portrait-sky-build.log,
+  /private/tmp/calendar-portrait-sky-sim.log, and
+  /private/tmp/calendar-portrait-sky-install.json.
+
+- Removed the visible top cutoff by extending the included artwork's blue sky
+  130 pt upward, with a 12% cloud fade over that backing. Composite the artwork
+  and sky before applying the shared opacity to avoid a second horizontal seam.
+  Scale and position remain 58% / 76 pt. Simulator screenshot inspected:
+  /private/tmp/calendar-portrait-sky-blend.png. Device Release and simulator
+  builds and strict signature verification passed. Logs:
+  /private/tmp/calendar-portrait-sky-blend-build.log and
+  /private/tmp/calendar-portrait-sky-blend-sim.log.
+
+- Subtle vertical stretch: stretched the portrait artwork by 3.5% vertically
+  around its bottom edge, preserving width and 76 pt menu clearance. Shortened
+  the sky extension to 80 pt. Simulator and device Release builds, strict
+  signature verification, and physical iPhone installation passed. Logs:
+  /private/tmp/calendar-portrait-stretch-build.log,
+  /private/tmp/calendar-portrait-stretch-sim.log, and
+  /private/tmp/calendar-portrait-stretch-install.json.
+
+- Softer edge refinement: total vertical stretch is now 5% (previously 3.5%).
+  Top fade spans 16%, bottom fade 6%, each with intermediate opacity stops;
+  sky extends 100 pt upward with a gradual transition. Menu clearance remains
+  76 pt. Simulator and device Release builds, strict signature verification,
+  and physical iPhone installation passed. Logs:
+  /private/tmp/calendar-portrait-soft-build.log,
+  /private/tmp/calendar-portrait-soft-sim.log, and
+  /private/tmp/calendar-portrait-soft-install.json.
+
+- After reverting the longer-fade experiment, made a small adjustment only:
+  top fade 16% to 18%, bottom fade 6% to 7%, with matching intermediate stops.
+  Sky backing follows the new top fade length; sky extension, size, stretch,
+  and position remain unchanged.
+  Simulator and device Release builds, strict signature verification, and
+  physical iPhone installation passed. Logs:
+  /private/tmp/calendar-portrait-smallfade-build.log,
+  /private/tmp/calendar-portrait-smallfade-sim.log, and
+  /private/tmp/calendar-portrait-smallfade-install.json.
+
+- Upper sky reach: extended the sky backing from 100 pt to 160 pt above the
+  artwork so its transition continues behind the date controls and view-mode
+  bar. Artwork mask and the approved bottom fade remain unchanged. Simulator
+  and device Release builds, strict signature verification, and physical iPhone
+  installation passed. Logs: /private/tmp/calendar-portrait-upperfade-build.log,
+  /private/tmp/calendar-portrait-upperfade-sim.log, and
+  /private/tmp/calendar-portrait-upperfade-install.json.
+
+- Consistent top transition: removed intermediate top mask and sky gradient
+  stops, giving continuous linear opacity ramps without the sky plateau. Kept
+  the approved bottom fade, framing, and upper reach. Simulator and device
+  Release builds, signature verification, and physical iPhone installation
+  passed. Logs: /private/tmp/calendar-portrait-linear-build.log,
+  /private/tmp/calendar-portrait-linear-sim.log, and
+  /private/tmp/calendar-portrait-linear-install.json.
+
+- Cloud-top reveal: moved the end of the top fade from 18% to 15% of artwork
+  height so the upper cloud becomes visible sooner. Kept the transparent edge,
+  continuous ramp, sky backing, framing, and bottom fade.
+  Simulator and device Release builds, strict signature verification, and
+  physical iPhone installation passed. Logs:
+  /private/tmp/calendar-portrait-cloudtop-build.log,
+  /private/tmp/calendar-portrait-cloudtop-sim.log, and
+  /private/tmp/calendar-portrait-cloudtop-install.json.
+
+- Higher blend: top mask reaches full visibility at 12% instead of 15%; sky
+  extension increased from 160 pt to 180 pt. Bottom fade and artwork framing
+  unchanged. Simulator and device Release builds, signature verification, and
+  physical iPhone installation passed. Logs:
+  /private/tmp/calendar-portrait-higher-build.log,
+  /private/tmp/calendar-portrait-higher-sim.log, and
+  /private/tmp/calendar-portrait-higher-install.json.
+
+- Tiny upward nudge: top fade endpoint 12% to 11%, sky extension 180 pt to
+  190 pt; bottom and framing unchanged. Device Release build and strict
+  signature verification passed. Build log:
+  /private/tmp/calendar-portrait-nudge-build.log.
+
+- Continued the linear top blend farther upward past the Today divider:
+  top fade endpoint 11% to 10%, sky extension 190 pt to 205 pt. Bottom and
+  framing unchanged. Device Release build and signature verification passed.
+  Build log: /private/tmp/calendar-portrait-divider-build.log.
+
+- Divider follow-up: top fade endpoint 10% to 9%, sky extension 205 pt to
+  220 pt for a slightly higher, longer blend around the divider. Bottom and
+  framing unchanged. Device Release build and signature verification passed.
+  Build log: /private/tmp/calendar-portrait-divider-next-build.log.
+
+- Further top fade: top mask endpoint 9% to 8%, sky extension 220 pt to
+  235 pt. Bottom and framing unchanged. Device Release build and signature
+  verification passed. Build log:
+  /private/tmp/calendar-portrait-divider-final-build.log.
+
+- Additional upward step: top mask endpoint 8% to 7%, sky extension 235 pt
+  to 250 pt. Bottom and framing unchanged. Device Release build and signature
+  verification passed. Build log:
+  /private/tmp/calendar-portrait-upperstep-build.log.
+
+- Next upward step: top mask endpoint 7% to 6%, sky extension 250 pt to
+  265 pt. Bottom and framing unchanged. Device Release build and signature
+  verification passed. Build log:
+  /private/tmp/calendar-portrait-nextstep-build.log.
+
+- Smoothed the flattened top: sky extension 265 pt to 280 pt, with a wider
+  cloud fade (6% to 8%) to soften the upper edge. Bottom and framing unchanged.
+  Simulator and device Release builds, strict signature verification, and
+  physical iPhone installation passed. Logs:
+  /private/tmp/calendar-portrait-smoothup-build.log,
+  /private/tmp/calendar-portrait-smoothup-sim.log, and
+  /private/tmp/calendar-portrait-smoothup-install.json.
+
+- Tiny cloud reveal: adjusted only the top mask endpoint from 8% to 7%,
+  retaining sky extension, framing, and bottom fade. Device Release build and
+  strict signature verification passed. Build log:
+  /private/tmp/calendar-portrait-reveal-build.log.
+
+- Extended only the top sky blend another 10 pt upward (280 pt to 290 pt).
+  All other settings retained. Device Release build and strict signature
+  verification passed. Build log:
+  /private/tmp/calendar-portrait-tenpoint-build.log.
+
+- Extended the top sky blend another 10 pt upward (290 pt to 300 pt).
+  All other settings retained. Device Release build and strict signature
+  verification passed. Build log: /private/tmp/calendar-portrait-300-build.log.
+
+- Extended the top sky blend another 20 pt upward (300 pt to 320 pt).
+  All other settings retained. Device Release build and strict signature
+  verification passed. Build log: /private/tmp/calendar-portrait-320-build.log.
+
+- Extended the top sky blend another 30 pt upward (320 pt to 350 pt).
+  All other settings retained. Device Release build and strict signature
+  verification passed. Build log: /private/tmp/calendar-portrait-350-build.log.
+
+- Extended the top sky blend another 40 pt upward (350 pt to 390 pt).
+  All other settings retained. Device Release build and strict signature
+  verification passed. Build log: /private/tmp/calendar-portrait-390-build.log.
+
+- Clearer cloud top: reduced the artwork's top fade from 7% to 2.5%, keeping
+  sky reach and bottom/framing unchanged. The source artwork already crops the
+  very top of the central cloud. Simulator screenshot inspected:
+  /private/tmp/calendar-portrait-clearcloud.png. Simulator and device Release
+  builds and strict signature verification passed. Logs:
+  /private/tmp/calendar-portrait-clearcloud-build.log and
+  /private/tmp/calendar-portrait-clearcloud-sim.log.
+
+- Gradual cloud correction: widened the abrupt 2.5% artwork fade to 12%,
+  with eased opacity stops at quarter intervals. Used the same easing for
+  the sky's existing 390 pt extension. Bottom and framing unchanged.
+  Simulator and device Release builds and signature verification passed.
+  Logs: /private/tmp/calendar-portrait-gradual-build.log and
+  /private/tmp/calendar-portrait-gradual-sim.log.
+
+- Reverted the last eased whole-cloud fade at the user's request. Restored
+  linear sky blending; the included artwork now supplies a luminance mask
+  that preserves the bright cloud while fading its surrounding blue sky.
+  Only the first 1.5% at the top tips fades in. Custom photos retain the prior
+  simple 2.5% fade. Bottom, stretch, and positioning unchanged. Simulator
+  screenshot inspected: /private/tmp/calendar-portrait-contour.png.
+  Simulator and device Release builds and signature verification passed.
+  Logs: /private/tmp/calendar-portrait-contour-sim.log and
+  /private/tmp/calendar-portrait-contour-build.log.
+
+- Restored more cloud tips by reducing only their fade from 1.5% to 0.5% of
+  artwork height. Approved sky blend and all framing retained. Device Release
+  build and strict signature verification passed. Build log:
+  /private/tmp/calendar-portrait-tips-build.log.
+
+- Removed the remaining 0.5% cloud-tip fade so the luminance mask preserves
+  the cloud right up to the image's top edge. Sky blend and framing retained.
+  Device Release build and strict signature verification passed. Build log:
+  /private/tmp/calendar-portrait-fulltips-build.log.
+
+- 2026-10-26 source cutoff fix: the original image itself crops the crown.
+  Added a portrait-only extended asset with an ImageGen reconstruction of the
+  missing crown and extra sky; source/provenance in
+  `docs/cloud-background-restoration.md`. Compensated portrait artwork height
+  for the added canvas. Original landscape/Mac asset and custom imports retained.
+  Inspected the actual iPhone 16 simulator screenshot:
+  /private/tmp/calendar-portrait-completecloud.png. The complete rounded crown
+  is visible with blue sky above, and characters remain above the bottom menu.
+  Simulator and device Release builds and strict signature verification passed.
+  Logs: /private/tmp/calendar-portrait-completecloud-build.log and
+  /private/tmp/calendar-portrait-completecloud-sim.log.
