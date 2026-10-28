@@ -11,7 +11,8 @@ enum EventLocationAccess {
         if let text = event.location, !text.isEmpty {
             return (text, event.structuredLocation?.geoLocation?.coordinate)
         }
-        guard let title = event.title, let row = rows.first(where: { $0.titleKey == title }) else { return nil }
+        guard let title = event.title, let row = (rows.first(where: { $0.titleKey == scopedTitle(title, weekday: Calendar.current.component(.weekday, from: event.startDate)) })
+            ?? rows.first(where: { $0.titleKey == title })) else { return nil }
         let coordinate: CLLocationCoordinate2D? = {
             guard let lat = row.latitude, let lon = row.longitude else { return nil }
             return CLLocationCoordinate2D(latitude: lat, longitude: lon)
@@ -59,8 +60,11 @@ enum EventLocationAccess {
         }
     }
 
-    static func setLocation(_ text: String?, coordinate: CLLocationCoordinate2D?, title: String, rows: [EventLocationOverride], context: ModelContext) {
-        let existing = rows.first { $0.titleKey == title }
+    static func scopedTitle(_ title: String, weekday: Int) -> String { "weekday/\(weekday)/\(title)" }
+
+    static func setLocation(_ text: String?, coordinate: CLLocationCoordinate2D?, title: String, rows: [EventLocationOverride], context: ModelContext, weekday: Int? = nil) {
+        let key = weekday.map { scopedTitle(title, weekday: $0) } ?? title
+        let existing = rows.first { $0.titleKey == key }
         guard let text, !text.isEmpty else {
             if let existing { context.delete(existing) }
             return
@@ -70,7 +74,7 @@ enum EventLocationAccess {
             existing.latitude = coordinate?.latitude
             existing.longitude = coordinate?.longitude
         } else {
-            context.insert(EventLocationOverride(titleKey: title, locationText: text, latitude: coordinate?.latitude, longitude: coordinate?.longitude))
+            context.insert(EventLocationOverride(titleKey: key, locationText: text, latitude: coordinate?.latitude, longitude: coordinate?.longitude))
         }
     }
 }

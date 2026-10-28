@@ -1,4 +1,5 @@
 import EventKit
+import CoreLocation
 import SwiftData
 import SwiftUI
 
@@ -31,6 +32,7 @@ struct VoiceEventView: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var reminderRows: [EventReminderPreference]
     @Query private var locationOverrides: [EventLocationOverride]
+    @Query private var savedAddresses: [SavedAddress]
     @Query private var preferencesRows: [AppPreferences]
 
     @State private var speech = SpeechTranscriber()
@@ -57,6 +59,8 @@ struct VoiceEventView: View {
     @State private var contextEvent: EKEvent?
     @State private var confirmingMassDelete = false
     @State private var lastHeard = ""
+    @State private var locationRequest: VoiceLocationChangeRequest?
+    @State private var locationCandidates: [EKEvent] = []
     @State private var typed = ""
     @State private var errorMessage: String?
     @State private var emailRequest: VoiceEmailRequest?
@@ -122,7 +126,8 @@ struct VoiceEventView: View {
                     .padding(.bottom, 8)
                 ScrollView {
                     VStack(spacing: 16) {
-                        if emailRequest != nil { emailCard }
+                        if locationRequest != nil { locationCard }
+                        else if emailRequest != nil { emailCard }
                         else if moveRequest != nil { moveCard }
                         else if deleteQuery != nil { deleteCard }
                         else if drafts.count > 1 { draftPager }
@@ -153,7 +158,7 @@ struct VoiceEventView: View {
         #endif
         .task {
             contextEvent = selectedEvent
-            speech.contextualStrings = writableCalendars.map(\.title) + locationOverrides.map(\.locationText)
+            speech.contextualStrings = VoiceVocabulary.hints(calendars: writableCalendars.map(\.title), places: locationOverrides.map(\.locationText) + savedAddresses.flatMap { [$0.label, $0.addressLine] })
             speech.onFinished = { heard in handle(heard) }
             await speech.requestAccess()
             if speech.access == .granted { speech.start() }
@@ -182,14 +187,19 @@ struct VoiceEventView: View {
                     .animation(Motion.easeOut(0.2), value: speech.isListening)
             }
             .buttonStyle(.plain)
-            .disabled(speech.access == .denied)
+            .disabled(speech.access == .denied || speech.isFinalizing)
             .accessibilityLabel(speech.isListening ? "Stop listening" : "Start listening")
 
             Group {
                 if speech.access == .denied {
                     Text("Microphone or speech access is off. Allow it in Settings → CalendarApp, or type below.")
+                } else if speech.isFinalizing {
+                    Text("Finishing transcription…")
                 } else if speech.isListening {
-                    Text(speech.transcript.isEmpty ? "Listening…" : "“\(speech.transcript)”")
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(speech.transcript.isEmpty ? "Listening…" : "“\(speech.transcript)”")
+                        Text("Take your time. Tap Stop when you're done.").font(.caption)
+                    }
                 } else if deleteQuery != nil {
                     Text(deleteIsMass ? "Say “delete them”, or tap Delete below." : "Say “delete it”, or tap Delete below.")
                 } else if draft != nil {
@@ -617,6 +627,87 @@ struct VoiceEventView: View {
 
     // MARK: Move card
 
+    private var locationCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let request = locationRequest {
+                Text("Change location to \(request.location)?").font(.headline)
+                if locationCandidates.isEmpty {
+                    Text(errorMessage ?? "No matching upcoming events found.").foregroundStyle(.secondary)
+                } else {
+                    Text("\(locationCandidates.count) matching events. Dates and times stay the same.")
+                        .font(.subheadline)
+                    ForEach(Array(locationCandidates.prefix(12).enumerated()), id: \.offset) { _, event in
+                        Text("\(event.title ?? "Event") · \(event.startDate.formatted(date: .abbreviated, time: .shortened))")
+                            .font(.caption)
+                    }
+                    Button("Update \(locationCandidates.count) Locations") { applyLocationChange() }
+                        .buttonStyle(.borderedProminent)
+                    Text("Or say “yes”. You can undo this afterward.").font(.footnote).foregroundStyle(.secondary)
+                }
+                Button("Not now") { reset() }.buttonStyle(.bordered)
+            }
+        }
+    }
+
+    private func applyLocationChange() {
+        guard let request = locationRequest, !locationCandidates.isEmpty else { return }
+        struct OldLocation {
+            let event: EKEvent
+            let text: String?
+            let structured: EKStructuredLocation?
+        }
+        var saved: [OldLocation] = []
+        var failed = 0
+        for event in locationCandidates {
+            let old = OldLocation(event: event, text: event.location, structured: event.structuredLocation)
+            event.location = request.location
+            event.structuredLocation = nil
+            do { try eventStore.update(event); saved.append(old) }
+            catch {
+                event.location = old.text; event.structuredLocation = old.structured
+                failed += 1
+            }
+        }
+        guard !saved.isEmpty else { errorMessage = "Couldn't save the locations. Nothing was changed."; return }
+        // Scoped fallback keys sync through the existing location record format.
+        // A Thursday-only edit must not relabel Monday practices with that title.
+        var priorOverrides: [(title: String, weekday: Int, text: String?, coordinate: CLLocationCoordinate2D?)] = []
+        var seen: Set<String> = []
+        let rows = (try? modelContext.fetch(FetchDescriptor<EventLocationOverride>())) ?? []
+        for old in saved {
+            let title = old.event.title ?? ""
+            let weekday = Calendar.current.component(.weekday, from: old.event.startDate)
+            let key = EventLocationAccess.scopedTitle(title, weekday: weekday)
+            guard seen.insert(key).inserted else { continue }
+            let prior = rows.first { $0.titleKey == key }
+            let coordinate = prior.flatMap { row -> CLLocationCoordinate2D? in
+                guard let lat = row.latitude, let lon = row.longitude else { return nil }
+                return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+            }
+            priorOverrides.append((title, weekday, prior?.locationText, coordinate))
+            EventLocationAccess.setLocation(request.location, coordinate: nil, title: title, rows: rows, context: modelContext, weekday: weekday)
+        }
+        try? modelContext.save()
+        undoManager.register(message: "\(saved.count) Locations Updated") {
+            for old in saved {
+                old.event.location = old.text; old.event.structuredLocation = old.structured
+                try? eventStore.update(old.event)
+            }
+            let current = (try? modelContext.fetch(FetchDescriptor<EventLocationOverride>())) ?? []
+            for old in priorOverrides {
+                EventLocationAccess.setLocation(old.text, coordinate: old.coordinate, title: old.title, rows: current, context: modelContext, weekday: old.weekday)
+            }
+            try? modelContext.save()
+        }
+        if failed > 0 {
+            locationCandidates.removeAll { event in saved.contains { $0.event === event } }
+            errorMessage = "Updated \(saved.count) locations; \(failed) couldn't be saved. You can retry those or undo."
+        } else {
+            speech.cancel()
+            close()
+        }
+    }
+
     private var moveCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             if !lastHeard.isEmpty {
@@ -754,6 +845,8 @@ struct VoiceEventView: View {
     }
 
     private func reset() {
+        locationRequest = nil
+        locationCandidates = []
         clearEmailLookup()
         draft = nil
         deleteQuery = nil
@@ -785,13 +878,30 @@ struct VoiceEventView: View {
             return
         }
         switch intent {
+        case .confirm, .cancel, .changeLocation: break
+        default: locationRequest = nil; locationCandidates = []
+        }
+        switch intent {
+        case .changeLocation(let request):
+            reset()
+            lastHeard = heard
+            locationRequest = request
+            locationCandidates = findEvents(for: request.target, fuzzy: false)
+            if !request.target.isAll, locationCandidates.count > 1 {
+                errorMessage = "More than one event matches. Name a day or say “all” to update multiple locations."
+                locationCandidates = []
+            } else if locationCandidates.count > RepeatRule.maxEvents {
+                errorMessage = "Too many matches. Add a date range before changing locations."
+                locationCandidates = []
+            }
         case .email(let request):
             reset()
             lastHeard = heard
             emailRequest = request
             startEmailLookup(request)
         case .confirm:
-            if moveRequest != nil {
+            if locationRequest != nil { applyLocationChange() }
+            else if moveRequest != nil {
                 // Moving is undoable, so a plain "yes" is enough -- but only for a single match.
                 if moveMulti { moveAll() }
                 else if moveItems.count == 1, let item = moveItems.first, let new = newTimes(for: item.event, request: item.request) { move([(item.event, new)]) }
@@ -809,7 +919,7 @@ struct VoiceEventView: View {
             } else if deleteQuery != nil, deleteCandidates.count == 1, let event = deleteCandidates.first { delete(event) }
             else if deleteQuery != nil, deleteCandidates.count > 1 { errorMessage = "More than one event matches — tap the one to delete." }
         case .cancel:
-            if emailRequest != nil || draft != nil || deleteQuery != nil || moveRequest != nil { reset() } else { speech.cancel(); close() }
+            if locationRequest != nil || emailRequest != nil || draft != nil || deleteQuery != nil || moveRequest != nil { reset() } else { speech.cancel(); close() }
         case .move(let request):
             clearEmailLookup()
             // With a draft on screen, "move it to Friday" is a correction to the draft.

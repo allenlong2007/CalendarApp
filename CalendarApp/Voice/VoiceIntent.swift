@@ -5,6 +5,7 @@ import Foundation
 /// can be done hands-free ("delete pickleball practice Thursday" ... "yes").
 enum VoiceIntent: Equatable {
     case email(VoiceEmailRequest)
+    case changeLocation(VoiceLocationChangeRequest)
     case delete(VoiceDeleteRequest)
     case confirm
     /// "delete it" / "yes delete" -- the only spoken way to confirm a deletion.
@@ -47,6 +48,7 @@ struct VoiceIntentClassifier {
     var quarterEnd: Date?
 
     func classify(_ spoken: String, now: Date = .now) -> VoiceIntent {
+        if let request = locationChange(from: spoken, now: now) { return .changeLocation(request) }
         if let request = VoiceEmailRequest.parse(spoken) { return .email(request) }
         let text = spoken.lowercased()
             .replacingOccurrences(of: #"[.!?,]"#, with: "", options: .regularExpression)
@@ -267,5 +269,31 @@ enum VoiceDeleteMatcher {
             previous = current
         }
         return previous[b.count]
+    }
+}
+
+
+struct VoiceLocationChangeRequest: Equatable {
+    var target: VoiceDeleteRequest
+    var location: String
+}
+
+extension VoiceIntentClassifier {
+    func locationChange(from spoken: String, now: Date = .now) -> VoiceLocationChangeRequest? {
+        let pattern = #"(?i)^(?:please\s+)?(?:change|set|update|correct)\s+(?:the\s+)?(.+?)\s+locations?\s+(?:to|as)\s+(.+?)\s*[.!]?$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: spoken, range: NSRange(spoken.startIndex..., in: spoken)),
+              let subject = Range(match.range(at: 1), in: spoken),
+              let place = Range(match.range(at: 2), in: spoken) else { return nil }
+        var words = String(spoken[subject])
+        // Bare "Thursday" in a bulk edit is a weekday filter, not just the
+        // nearest Thursday. Let the existing safe matcher enforce that filter.
+        if words.range(of: #"(?i)\b(?:all|every|each)\b"#, options: .regularExpression) != nil {
+            words = words.replacingOccurrences(of: #"(?i)\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?\b"#, with: "every $1", options: .regularExpression)
+        }
+        let target = request(from: words, now: now)
+        guard !target.titleWords.isEmpty else { return nil }
+        let location = VoiceVocabulary.correctPlaces(String(spoken[place])).capitalized
+        return VoiceLocationChangeRequest(target: target, location: location)
     }
 }

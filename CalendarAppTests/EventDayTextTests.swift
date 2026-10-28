@@ -40,3 +40,22 @@ struct EventDayTextTests {
             == "\(DateMath.timeFormatter.string(from: event.startDate)) – \(DateMath.timeFormatter.string(from: event.endDate))")
     }
 }
+
+@MainActor
+struct WeekdayLocationOverrideTests {
+    @Test func thursdayFallbackDoesNotChangeOtherWeekdays() {
+        let store = EKEventStore()
+        let title = "Pickleball Team Practice"
+        let rows = [EventLocationOverride(titleKey: title, locationText: "Warren Tennis Courts"),
+                    EventLocationOverride(titleKey: EventLocationAccess.scopedTitle(title, weekday: 5), locationText: "Muir Tennis Courts")]
+        let event = EKEvent(eventStore: store)
+        event.title = title
+        event.startDate = Calendar.current.date(from: DateComponents(year: 2026, month: 10, day: 29, hour: 17))!
+        event.endDate = event.startDate.addingTimeInterval(3600)
+        #expect(EventLocationAccess.displayLocation(for: event, in: rows)?.text == "Muir Tennis Courts")
+        event.startDate = Calendar.current.date(byAdding: .day, value: 1, to: event.startDate)!
+        #expect(EventLocationAccess.displayLocation(for: event, in: rows)?.text == "Warren Tennis Courts")
+        event.location = "Special Match Venue"
+        #expect(EventLocationAccess.displayLocation(for: event, in: rows)?.text == "Special Match Venue")
+    }
+}

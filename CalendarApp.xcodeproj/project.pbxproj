@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		01C7B466D158AA6EEE64FA45 /* VoiceLanguageSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4AF80DBC0FA309BC8BA1CAB /* VoiceLanguageSupport.swift */; };
 		04C2574048FF41C86F33FCB7 /* NextEventQueryIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE518DA05F6A742D0C0A73CD /* NextEventQueryIntent.swift */; };
 		059CD2B955C3922D8D0F5C38 /* EventTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A52F0E257516420FB903FFDB /* EventTemplate.swift */; };
 		0755F269AA7415DE7B37D7EB /* CompletionCheckButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2279106AAB46C57616AAA8D0 /* CompletionCheckButton.swift */; };
@@ -241,6 +242,7 @@
 		B9EB388B577BDDD6B55084DB /* DuplicateToDaysView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuplicateToDaysView.swift; sourceTree = "<group>"; };
 		BA3310DCFD003E09F54D3ABE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BFA197C0A956DF3012C06EAC /* VoiceIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceIntent.swift; sourceTree = "<group>"; };
+		C4AF80DBC0FA309BC8BA1CAB /* VoiceLanguageSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceLanguageSupport.swift; sourceTree = "<group>"; };
 		C5BED8401AEB339A0A7CF7C7 /* EventTemplateEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventTemplateEditorView.swift; sourceTree = "<group>"; };
 		C763FF5FCD0797D98A958CA0 /* GoogleOAuthConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleOAuthConfig.swift; sourceTree = "<group>"; };
 		C79E1B37A51558C2557ABDA0 /* WidgetEventData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetEventData.swift; sourceTree = "<group>"; };
@@ -496,6 +498,7 @@
 				2B3D641C4D925CAEA8E935DF /* VoiceEventParser.swift */,
 				F189C48ED2613E64A0D2FCDD /* VoiceEventView.swift */,
 				BFA197C0A956DF3012C06EAC /* VoiceIntent.swift */,
+				C4AF80DBC0FA309BC8BA1CAB /* VoiceLanguageSupport.swift */,
 				149FE2268BF149BD90F27272 /* VoiceMove.swift */,
 			);
 			path = Voice;
@@ -827,6 +830,7 @@
 				6A6E2F212106FC01B77BE2BA /* VoiceEventParser.swift in Sources */,
 				339B18C6B980DD306C6DAD7A /* VoiceEventView.swift in Sources */,
 				657545503724463B06A3D5B4 /* VoiceIntent.swift in Sources */,
+				01C7B466D158AA6EEE64FA45 /* VoiceLanguageSupport.swift in Sources */,
 				D706FF8DD1B67F0C72C3D7FA /* VoiceMove.swift in Sources */,
 				97796121515BCABE47BC8534 /* WeekScrollMomentum.swift in Sources */,
 				DD4218DDA0EFE4D66603D66C /* WeekView.swift in Sources */,

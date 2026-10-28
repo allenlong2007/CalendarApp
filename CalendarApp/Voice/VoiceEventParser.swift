@@ -22,6 +22,7 @@ struct VoiceEventParser {
         // Order matters: pull out the pieces with the most distinctive wording
         // first, so what's left is the title (and so "at 6pm" is gone before
         // "at the courts" is read as a location).
+        if let notes = extractNotes(&rest) { draft.notes = notes }
         if let explicit = extractExplicitTitle(&rest) { draft.title = capitalized(explicit) }
         if let minutes = extractReminder(&rest) { draft.reminderMinutes = minutes }
         // "Remind me in 6 months to ...", "set a reminder for Friday at 3": a reminder
@@ -74,17 +75,28 @@ struct VoiceEventParser {
     /// or nil when the sentence isn't several complete events (so "dinner with Sam
     /// and Alex tomorrow" stays one). Every clause must bring its own title and day.
     func parseMany(_ spoken: String, now: Date = .now) -> [EventDraft]? {
-        let clauses = normalize(spoken).components(separatedBy: #"\s*(?:,|&|\band\b|\bplus\b|\bthen\b|\balso\b)\s*"#)
-        guard clauses.count >= 2, clauses.count <= 8 else { return nil }
-        var drafts: [EventDraft] = []
-        for (index, clause) in clauses.enumerated() {
-            let cleaned = index == 0 ? clause : clause.replacingOccurrences(
-                of: #"(?i)^(?:(?:add|schedule|create|put|book)\s+)?(?:an?\s+|the\s+)?(?:new\s+)?(?:event\s+|appointment\s+)?(?:(?:called|named)\s+)?"#,
-                with: "", options: .regularExpression)
-            let draft = parse(cleaned, now: now)
-            guard !draft.title.isEmpty, draft.start != nil, draft.extraDays.isEmpty || index == 0 else { return nil }
-            drafts.append(draft)
+        let clauses = normalize(spoken).components(separatedBy: #"\s*(?:,|;|&|\band\b|\bplus\b|\bthen\b|\balso\b)\s*"#)
+        guard clauses.count >= 2, clauses.count <= 48 else { return nil }
+        var groups: [String] = []
+        var current = ""
+        for clause in clauses {
+            let candidate = parse(clause, now: now)
+            let previous = current.isEmpty ? nil : parse(current, now: now)
+            // A conjunction inside a name, note, location, or field list isn't
+            // another event. Both sides must describe their own named/time block.
+            let fieldOnly = clause.range(of: #"(?i)^(?:category|calendar|location|notes?|remind|for|at)\b"#, options: .regularExpression) != nil
+            if let previous, previous.start != nil, previous.timeKnown, !previous.title.isEmpty,
+               candidate.start != nil, candidate.timeKnown, !candidate.title.isEmpty, !fieldOnly {
+                groups.append(current)
+                current = clause.replacingOccurrences(of: #"(?i)^(?:(?:add|schedule|create|put|book)\s+)?(?:an?\s+|the\s+)?(?:new\s+)?(?:event\s+)?"#, with: "", options: .regularExpression)
+            } else {
+                current = current.isEmpty ? clause : current + " and " + clause
+            }
         }
+        if !current.isEmpty { groups.append(current) }
+        guard (2...8).contains(groups.count) else { return nil }
+        let drafts = groups.map { parse($0, now: now) }
+        guard drafts.allSatisfy({ !$0.title.isEmpty && $0.start != nil }) else { return nil }
         return drafts
     }
 
@@ -121,7 +133,15 @@ struct VoiceEventParser {
     }
 
     private func extractExplicitTitle(_ text: inout String) -> String? {
-        extract(#"\b(?:call it|name it|title it|titled|rename (?:it )?to|the title is|title is|title)\s+(.+?)(?=\s+(?:on|at|from|for|every|category|calendar|location|remind)\b|[,.]|$)"#, from: &text)?[1]
+        let label = #"\b(?:call it|name it|title it|titled|called|named|rename (?:it )?to|the title is|title is|title)\s+"#
+        if let quoted = extract(label + #"[“\"]([^”\"]+)[”\"]"#, from: &text) { return quoted[1] }
+        return extract(label + #"(.+?)(?=\s+(?:and\s+)?(?:on|at|from|for|every|category|calendar|location|remind|notes?|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|[,.;]|$)"#, from: &text)?[1]
+    }
+
+    private func extractNotes(_ text: inout String) -> String? {
+        let label = #"\b(?:notes?(?:\s+(?:is|are))?|add (?:a )?note(?: saying)?)\s+"#
+        if let quoted = extract(label + #"[“\"]([^”\"]+)[”\"]"#, from: &text) { return quoted[1] }
+        return extract(label + #"(.+?)(?=;\s*(?:title|category|calendar|location|remind)\b|$)"#, from: &text)?[1].trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func extractReminder(_ text: inout String) -> Int? {
@@ -162,14 +182,14 @@ struct VoiceEventParser {
     private func extractLocation(_ text: inout String) -> String? {
         // Prepositions stranded by an extracted time ("... at") aren't places.
         text = text.replacingOccurrences(of: #"(?i)(?:\s+(?:at|on|from|in|by|for|to))+\s*$"#, with: "", options: .regularExpression)
-        let stop = #"(?=\s+(?:on|from|for|every|category|calendar|remind|reminder|tomorrow|today|tonight|next|this|at \d)\b|[,.;]|$)"#
+        let stop = #"(?=\s+(?:and\s+)?(?:on|from|for|every|category|calendar|remind|reminder|title|called|named|notes?|tomorrow|today|tonight|next|this|at \d)\b|[,.;]|$)"#
         if let g = extract(#"\blocation\s+(?:is\s+|to\s+)?(.+?)"# + stop, from: &text) {
-            let place = trimArticle(g[1])
-            return place.contains(where: \.isLetter) ? capitalized(place) : nil
+            let place = trimArticle(g[1]).replacingOccurrences(of: #"(?i)(?:\s+(?:and|then|also))+\s*$"#, with: "", options: .regularExpression)
+            return place.contains(where: \.isLetter) ? capitalized(VoiceVocabulary.correctPlaces(place)) : nil
         }
         if let g = extract(#"\b(?:at|in|@)\s+(.+?)"# + stop, from: &text) {
-            let place = trimArticle(g[1])
-            return place.contains(where: \.isLetter) ? capitalized(place) : nil
+            let place = trimArticle(g[1]).replacingOccurrences(of: #"(?i)(?:\s+(?:and|then|also))+\s*$"#, with: "", options: .regularExpression)
+            return place.contains(where: \.isLetter) ? capitalized(VoiceVocabulary.correctPlaces(place)) : nil
         }
         return nil
     }
@@ -227,7 +247,8 @@ struct VoiceEventParser {
             var consumed = 0
             let tokens = clause.split(separator: " ", omittingEmptySubsequences: true)
             for token in tokens { if isDateWord(String(token)) { consumed += 1 } else { break } }
-            guard consumed > 0, isDateWord(before), let sep = bounds[index].1 else { continue }
+            guard consumed > 0, !before.trimmingCharacters(in: .punctuationCharacters).isEmpty,
+                  isDateWord(before), let sep = bounds[index].1 else { continue }
             let phrase = tokens.prefix(consumed).joined(separator: " ")
             guard let day = resolver.day(in: phrase, now: now) else { continue }
             days.append(day)
@@ -433,7 +454,7 @@ struct VoiceEventParser {
     // MARK: - Title cleanup
 
     private func cleanTitle(_ text: String) -> String {
-        var s = text
+        var s = text.replacingOccurrences(of: #"(?i)\b(?:and then|and also|and|then|also|please)\s*(?=[,.;]|$)"#, with: "", options: .regularExpression)
         s = s.replacingOccurrences(
             of: #"(?i)^\s*(?:please\s+|can you\s+|could you\s+|i want to\s+|i need to\s+)?(?:add|create|schedule|put|set up|make|book|new)\s+(?:me\s+)?(?:an?\s+|the\s+)?(?:new\s+)?(?:event|appointment)?\s*(?:(?:called|named|titled|for)\s+)*"#,
             with: "", options: .regularExpression)

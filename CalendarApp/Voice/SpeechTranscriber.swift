@@ -14,6 +14,7 @@ final class SpeechTranscriber {
 
     private(set) var transcript = ""
     private(set) var isListening = false
+    private(set) var isFinalizing = false
     private(set) var access: Access = .unknown
     private(set) var errorMessage: String?
 
@@ -28,9 +29,14 @@ final class SpeechTranscriber {
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
     private var silenceTask: Task<Void, Never>?
+    private var finalizationTask: Task<Void, Never>?
+    private var buffer = SpeechTranscriptBuffer()
+    private let feed = RequestBox()
+    private var segmentID = UUID()
+    private var tapInstalled = false
 
     /// How long a pause ends the sentence.
-    private let silenceTimeout: Duration = .milliseconds(1700)
+    private let silenceTimeout: Duration = .seconds(4)
 
     var isAvailable: Bool { recognizer?.isAvailable ?? false }
 
@@ -66,40 +72,24 @@ final class SpeechTranscriber {
     // MARK: - Listening
 
     func start() {
-        guard !isListening else { return }
+        guard !isListening, !isFinalizing else { return }
         guard let recognizer, recognizer.isAvailable else {
             errorMessage = "Speech recognition isn't available right now."
             return
         }
         errorMessage = nil
         transcript = ""
-
+        buffer = SpeechTranscriptBuffer()
         do {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.record, mode: .measurement, options: .duckOthers)
             try session.setActive(true, options: .notifyOthersOnDeactivation)
-
-            let request = SFSpeechAudioBufferRecognitionRequest()
-            request.shouldReportPartialResults = true
-            request.addsPunctuation = false
-            // Hints include place names from the user's calendar, so they're only
-            // given to the recognizer when it runs on the phone itself. If this
-            // device can't recognise on-device, the audio is handled by Apple's
-            // service (the system's normal dictation behavior) -- with no hints.
-            if recognizer.supportsOnDeviceRecognition {
-                request.requiresOnDeviceRecognition = true
-                request.contextualStrings = contextualStrings
-            }
-            self.request = request
-
-            Self.installTap(on: engine.inputNode, feeding: RequestBox(request))
+            isListening = true
+            startSegment(using: recognizer)
+            Self.installTap(on: engine.inputNode, feeding: feed)
+            tapInstalled = true
             engine.prepare()
             try engine.start()
-
-            task = Self.makeTask(recognizer: recognizer, request: request) { [weak self] text, isFinal, failure in
-                Task { @MainActor in self?.handle(text: text, isFinal: isFinal, failure: failure) }
-            }
-            isListening = true
             armSilenceTimer()
         } catch {
             errorMessage = error.localizedDescription
@@ -107,52 +97,102 @@ final class SpeechTranscriber {
         }
     }
 
-    /// Stops listening and reports what was heard.
+    private func startSegment(using recognizer: SFSpeechRecognizer) {
+        segmentID = UUID()
+        let id = segmentID
+        task?.cancel()
+        let request = SFSpeechAudioBufferRecognitionRequest()
+        request.shouldReportPartialResults = true
+        request.addsPunctuation = true
+        request.taskHint = .dictation
+        // Keep private vocabulary on device; preserve the system fallback on
+        // devices that cannot perform local speech recognition.
+        if recognizer.supportsOnDeviceRecognition {
+            request.requiresOnDeviceRecognition = true
+            request.contextualStrings = VoiceVocabulary.hints(calendars: [], places: contextualStrings)
+        }
+        self.request = request
+        feed.replace(with: request)
+        task = Self.makeTask(recognizer: recognizer, request: request) { [weak self] text, isFinal, failure in
+            Task { @MainActor in self?.handle(text: text, isFinal: isFinal, failure: failure, segment: id) }
+        }
+    }
+
+    /// End audio first, then allow the recognizer to deliver the last words.
+    /// Cancelling immediately here used to throw away the final transcription.
     func stop() {
         guard isListening else { return }
-        let heard = transcript
-        tearDown()
-        if !heard.trimmingCharacters(in: .whitespaces).isEmpty { onFinished?(heard) }
+        isListening = false
+        isFinalizing = true
+        silenceTask?.cancel()
+        stopAudio()
+        feed.replace(with: nil)
+        request?.endAudio()
+        finalizationTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            self?.finish()
+        }
     }
 
     func cancel() { tearDown() }
 
-    // MARK: - Internals
-
-    private func handle(text: String?, isFinal: Bool, failure: String?) {
-        guard isListening else { return }
+    private func handle(text: String?, isFinal: Bool, failure: String?, segment: UUID) {
+        guard segment == segmentID, isListening || isFinalizing else { return }
         if let text, !text.isEmpty {
-            transcript = text
-            armSilenceTimer()
+            let previous = buffer.text
+            buffer.update(text)
+            transcript = VoiceVocabulary.correctPlaces(buffer.text)
+            if isListening, previous != buffer.text { armSilenceTimer() }
         }
-        if isFinal { stop() }
-        else if let failure, transcript.isEmpty { errorMessage = failure; tearDown() }
+        if isFinal {
+            if isFinalizing { finish() }
+            else if let recognizer {
+                // Apple's tasks can finalize mid-dictation. Preserve that
+                // segment and keep feeding the microphone into a fresh task.
+                buffer.commitSegment()
+                startSegment(using: recognizer)
+            }
+        } else if let failure {
+            if transcript.isEmpty { errorMessage = failure; tearDown() }
+            else { finish() }
+        }
     }
 
-    /// A pause after speech means the sentence is done; before any speech it
-    /// just keeps waiting (up to a longer limit).
+    private func finish() {
+        guard isListening || isFinalizing else { return }
+        let heard = VoiceVocabulary.correctPlaces(buffer.text).trimmingCharacters(in: .whitespacesAndNewlines)
+        transcript = heard
+        tearDown()
+        if !heard.isEmpty { onFinished?(heard) }
+    }
+
     private func armSilenceTimer() {
         silenceTask?.cancel()
-        let waitForSpeech = transcript.isEmpty
+        let delay: Duration = transcript.isEmpty ? .seconds(15) : silenceTimeout
         silenceTask = Task { [weak self] in
-            try? await Task.sleep(for: waitForSpeech ? .seconds(8) : self?.silenceTimeout ?? .seconds(2))
+            try? await Task.sleep(for: delay)
             guard !Task.isCancelled else { return }
-            await MainActor.run { self?.stop() }
+            self?.stop()
         }
+    }
+
+    private func stopAudio() {
+        if engine.isRunning { engine.stop() }
+        if tapInstalled { engine.inputNode.removeTap(onBus: 0); tapInstalled = false }
     }
 
     private func tearDown() {
-        silenceTask?.cancel()
-        silenceTask = nil
-        if engine.isRunning {
-            engine.stop()
-            engine.inputNode.removeTap(onBus: 0)
-        }
+        segmentID = UUID()
+        silenceTask?.cancel(); silenceTask = nil
+        finalizationTask?.cancel(); finalizationTask = nil
+        stopAudio()
+        feed.replace(with: nil)
         request?.endAudio()
         task?.cancel()
-        request = nil
-        task = nil
+        request = nil; task = nil
         isListening = false
+        isFinalizing = false
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
@@ -160,14 +200,23 @@ final class SpeechTranscriber {
     // queues, so they're built outside the main actor.
 
     private final class RequestBox: @unchecked Sendable {
-        let request: SFSpeechAudioBufferRecognitionRequest
-        init(_ request: SFSpeechAudioBufferRecognitionRequest) { self.request = request }
+        // The audio render callback and MainActor swap/append under one lock.
+        private let lock = NSLock()
+        private var request: SFSpeechAudioBufferRecognitionRequest?
+        func replace(with request: SFSpeechAudioBufferRecognitionRequest?) {
+            lock.lock(); defer { lock.unlock() }
+            self.request = request
+        }
+        func append(_ buffer: AVAudioPCMBuffer) {
+            lock.lock(); defer { lock.unlock() }
+            request?.append(buffer)
+        }
     }
 
     private nonisolated static func installTap(on node: AVAudioInputNode, feeding box: RequestBox) {
         let format = node.outputFormat(forBus: 0)
         node.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
-            box.request.append(buffer)
+            box.append(buffer)
         }
     }
 

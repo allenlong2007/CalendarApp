@@ -181,13 +181,15 @@ struct VoiceLongCommandTests {
             }
         }
         for order in permutations(fields) {
-            let draft = parser.parse(order.joined(separator: "; "))
+          for separator in ["; ", " and ", ", "] {
+            let draft = parser.parse(order.joined(separator: separator))
             #expect(draft.title == "Team Pickleball Practice", Comment(rawValue: order.joined(separator: "; ")))
             #expect(draft.location == "Muir Tennis Courts")
             #expect(draft.calendarTitle == "Exercise")
             #expect(draft.durationMinutes == 90)
-            #expect(Calendar.current.component(.weekday, from: draft.start ?? .distantPast) == 5)
+            #expect(Calendar.current.component(.weekday, from: draft.start ?? .distantPast) == 5, Comment(rawValue: order.joined(separator: separator)))
             #expect(draft.isComplete)
+          }
         }
     }
 
