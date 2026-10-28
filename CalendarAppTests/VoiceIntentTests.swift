@@ -51,3 +51,15 @@ struct VoiceIntentTests {
         #expect(VoiceDeleteMatcher.matches(VoiceDeleteRequest(titleWords: ["pickleball", "tryouts", "finals"], day: nil, hour: nil), in: events, now: now).isEmpty)
     }
 }
+
+struct VoiceLocationChangeTests {
+    @Test func targetsOnlyNamedThursdayPractices() {
+        guard case .changeLocation(let request) = VoiceIntentClassifier().classify("change all Thursday pickleball team practice locations to mirror tennis courts") else {
+            Issue.record("Not a location change"); return
+        }
+        #expect(request.location == "Muir Tennis Courts")
+        #expect(request.target.isAll)
+        #expect(request.target.weekdays == [5])
+        #expect(Set(request.target.titleWords) == ["pickleball", "team", "practice"])
+    }
+}

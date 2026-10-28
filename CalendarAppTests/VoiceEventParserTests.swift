@@ -167,3 +167,77 @@ struct SpokenDateTests {
         #expect(d.title == "Dentist")
     }
 }
+
+struct VoiceLongCommandTests {
+    private let parser = VoiceEventParser(calendarTitles: ["Exercise", "Work"])
+
+    @Test func fieldsCanArriveInAnyOrder() {
+        let fields = ["title team pickleball practice", "location mirror tennis courts", "Thursday at 5 pm", "category exercise", "for 90 minutes"]
+        func permutations(_ fields: [String]) -> [[String]] {
+            if fields.isEmpty { return [[]] }
+            return fields.indices.flatMap { i in
+                var rest = fields; let first = rest.remove(at: i)
+                return permutations(rest).map { [first] + $0 }
+            }
+        }
+        for order in permutations(fields) {
+            let draft = parser.parse(order.joined(separator: "; "))
+            #expect(draft.title == "Team Pickleball Practice", Comment(rawValue: order.joined(separator: "; ")))
+            #expect(draft.location == "Muir Tennis Courts")
+            #expect(draft.calendarTitle == "Exercise")
+            #expect(draft.durationMinutes == 90)
+            #expect(Calendar.current.component(.weekday, from: draft.start ?? .distantPast) == 5)
+            #expect(draft.isComplete)
+        }
+    }
+
+    @Test func longDescriptionPreservesNotesAndConjunctions() {
+        let d = parser.parse("Please schedule an event called team pickleball practice every Thursday from 5 pm to 7 pm for 6 weeks at mirror tennis courts in the exercise calendar and remind me 30 minutes before; notes bring paddles and balls and ask Sam about next Friday")
+        #expect(d.title == "Team Pickleball Practice")
+        #expect(d.location == "Muir Tennis Courts")
+        #expect(d.reminderMinutes == 30)
+        #expect(d.notes == "bring paddles and balls and ask Sam about next Friday")
+        #expect(d.occurrences().count == 6)
+        #expect(d.durationMinutes == 120)
+    }
+
+    @Test func multipleEventsDoNotSplitNamesOrDetailsAtEveryAnd() {
+        let many = parser.parseMany("add dinner with Sam and Alex Tuesday at 7 pm at the cafe and then add a haircut Friday at 5 pm for 30 minutes")
+        #expect(many?.count == 2)
+        #expect(many?.first?.title == "Dinner With Sam And Alex")
+        #expect(many?.first?.location == "Cafe")
+        #expect(many?.last?.title == "Haircut")
+        #expect(many?.last?.durationMinutes == 30)
+        #expect(parser.parseMany("add dinner with Sam and Alex tomorrow at 7 pm") == nil)
+    }
+
+    @Test func quotedTitlesCanContainDateAndLocationWords() {
+        let draft = parser.parse("title \"Friday at the Movies\"; tomorrow at 7 pm; location Muir tennis courts")
+        #expect(draft.title == "Friday At The Movies")
+        #expect(draft.location == "Muir Tennis Courts")
+    }
+}
+
+struct SpeechLanguageSupportTests {
+    @Test func partialResultsReplaceInsteadOfRepeatingAndFinalSegmentsSurvive() {
+        var buffer = SpeechTranscriptBuffer()
+        buffer.update("add pickleball")
+        buffer.update("add pickleball Thursday")
+        buffer.commitSegment()
+        buffer.update("at five")
+        buffer.update("at five pm at Muir tennis courts")
+        #expect(buffer.text == "add pickleball Thursday at five pm at Muir tennis courts")
+        buffer.commitSegment()
+        #expect(buffer.text == "add pickleball Thursday at five pm at Muir tennis courts")
+    }
+
+    @Test func vocabularyCorrectsOnlyTheKnownPlaceAndKeepsOtherMirrors() {
+        #expect(VoiceVocabulary.correctPlaces("at mirror tennis courts") == "at Muir tennis courts")
+        #expect(VoiceVocabulary.correctPlaces("at mere tennis court") == "at Muir tennis courts")
+        #expect(VoiceVocabulary.correctPlaces("buy a mirror tomorrow") == "buy a mirror tomorrow")
+        let hints = VoiceVocabulary.hints(calendars: ["Exercise", "exercise"], places: ["Mirror Tennis Courts", "Muir tennis courts"])
+        #expect(hints.contains("Muir tennis courts"))
+        #expect(hints.filter { $0.lowercased() == "exercise" }.count == 1)
+        #expect(!hints.contains("Mirror Tennis Courts"))
+    }
+}
