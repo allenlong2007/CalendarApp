@@ -135,7 +135,7 @@ final class SpeechTranscriber {
         }
     }
 
-    func cancel() { tearDown() }
+    func cancel() { errorMessage = nil; tearDown() }
 
     private func handle(text: String?, isFinal: Bool, failure: String?, segment: UUID) {
         guard segment == segmentID, isListening || isFinalizing else { return }

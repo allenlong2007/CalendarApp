@@ -200,6 +200,8 @@ struct VoiceEventView: View {
                         Text(speech.transcript.isEmpty ? "Listening…" : "“\(speech.transcript)”")
                         Text("Take your time. Tap Stop when you're done.").font(.caption)
                     }
+                } else if locationRequest != nil {
+                    Text("Review the matching events, then update their locations.")
                 } else if deleteQuery != nil {
                     Text(deleteIsMass ? "Say “delete them”, or tap Delete below." : "Say “delete it”, or tap Delete below.")
                 } else if draft != nil {
@@ -634,13 +636,13 @@ struct VoiceEventView: View {
                 if locationCandidates.isEmpty {
                     Text(errorMessage ?? "No matching upcoming events found.").foregroundStyle(.secondary)
                 } else {
-                    Text("\(locationCandidates.count) matching events. Dates and times stay the same.")
+                    Text("\(locationCandidates.count) matching upcoming \(locationCandidates.count == 1 ? "event" : "events"). Dates and times stay the same.")
                         .font(.subheadline)
                     ForEach(Array(locationCandidates.prefix(12).enumerated()), id: \.offset) { _, event in
                         Text("\(event.title ?? "Event") · \(event.startDate.formatted(date: .abbreviated, time: .shortened))")
                             .font(.caption)
                     }
-                    Button("Update \(locationCandidates.count) Locations") { applyLocationChange() }
+                    Button("Update \(locationCandidates.count) \(locationCandidates.count == 1 ? "Location" : "Locations")") { applyLocationChange() }
                         .buttonStyle(.borderedProminent)
                     Text("Or say “yes”. You can undo this afterward.").font(.footnote).foregroundStyle(.secondary)
                 }
@@ -688,7 +690,7 @@ struct VoiceEventView: View {
             EventLocationAccess.setLocation(request.location, coordinate: nil, title: title, rows: rows, context: modelContext, weekday: weekday)
         }
         try? modelContext.save()
-        undoManager.register(message: "\(saved.count) Locations Updated") {
+        undoManager.register(message: "\(saved.count) \(saved.count == 1 ? "Location" : "Locations") Updated") {
             for old in saved {
                 old.event.location = old.text; old.event.structuredLocation = old.structured
                 try? eventStore.update(old.event)
@@ -841,6 +843,9 @@ struct VoiceEventView: View {
         let text = typed.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         typed = ""
+        // Typed input replaces any pending audio hypothesis. A late speech
+        // callback must not overwrite or confirm the typed command.
+        speech.cancel()
         handle(text)
     }
 
