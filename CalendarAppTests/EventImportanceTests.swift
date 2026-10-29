@@ -27,6 +27,11 @@ struct EventImportanceTests {
         #expect(EventImportance.notes(nil, settingImportant: true) == "[CalendarApp:important=true]")
     }
 
+    @Test func preservesBlankLinesAtEndOfUserNotes() {
+        let original = "Agenda\n\n"
+        #expect(EventImportance.displayNotes(EventImportance.notes(original, settingImportant: true)) == original)
+    }
+
     @Test func importantOverridesReminderAndTurningOffRestoresIt() {
         let event = EKEvent(eventStore: EKEventStore())
         event.notes = EventImportance.notes("Call details", settingImportant: true)

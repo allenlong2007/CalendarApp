@@ -22,6 +22,11 @@ enum EventReminderAccess {
     /// (Holidays, Birthdays) are excluded from the default -- a 15-minute
     /// warning on Christmas Day would fire at 11:45 PM the night before.
     static func effectiveMinutes(for event: EKEvent, in rows: [EventReminderPreference]) -> Int? {
+        if EventImportance.isImportant(notes: event.notes) { return 30 }
+        return ordinaryMinutes(for: event, in: rows)
+    }
+
+    static func ordinaryMinutes(for event: EKEvent, in rows: [EventReminderPreference]) -> Int? {
         if let existing = row(for: event, in: rows) { return existing.reminderMinutesBefore }
         guard !event.isAllDay, event.calendar?.allowsContentModifications == true else { return nil }
         return defaultMinutes

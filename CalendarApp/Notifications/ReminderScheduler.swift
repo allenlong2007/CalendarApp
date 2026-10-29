@@ -33,8 +33,14 @@ enum ReminderScheduler {
         let candidates = events
             .compactMap { event -> (event: EKEvent, fireDate: Date)? in
                 guard let minutes = EventReminderAccess.effectiveMinutes(for: event, in: reminderRows) else { return nil }
-                let fireDate = event.startDate.addingTimeInterval(-Double(minutes * 60))
-                guard fireDate > now else { return nil }
+                let fireDate: Date
+                if EventImportance.isImportant(notes: event.notes) {
+                    guard let importantDate = EventImportance.fireDate(start: event.startDate, now: now) else { return nil }
+                    fireDate = importantDate
+                } else {
+                    fireDate = event.startDate.addingTimeInterval(-Double(minutes * 60))
+                    guard fireDate > now else { return nil }
+                }
                 return (event, fireDate)
             }
             .sorted { $0.fireDate < $1.fireDate }
@@ -42,7 +48,8 @@ enum ReminderScheduler {
 
         for (event, fireDate) in candidates {
             let content = UNMutableNotificationContent()
-            content.title = event.title ?? "Event"
+            let important = EventImportance.isImportant(notes: event.notes)
+            content.title = important ? "Shivan · \(event.title ?? "Important event")" : (event.title ?? "Event")
             var body = event.isAllDay ? "All-day" : "Starts at \(DateMath.timeFormatter.string(from: event.startDate))"
             if let location = event.location, !location.isEmpty {
                 body += " · \(location)"

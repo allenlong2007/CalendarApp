@@ -76,6 +76,7 @@ struct EventEditorView: View {
     @State private var locationLatitude: Double?
     @State private var locationLongitude: Double?
     @State private var notes = ""
+    @State private var isImportant = false
     @State private var reminderMinutes: Int?
     @State private var repeatOption: RepeatOption = .never
     @State private var repeatOccurrences: Int = 8
@@ -223,12 +224,19 @@ struct EventEditorView: View {
                 }
 
                 Section("Remind me") {
+                    Toggle("Important", isOn: $isImportant)
+                    if isImportant {
+                        Label("Shivan reminder 30 minutes before", systemImage: "bell.badge")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                     Picker("Reminder", selection: $reminderMinutes) {
                         ForEach(reminderOptions, id: \.minutes) { option in
                             Text(option.label).tag(option.minutes)
                         }
                     }
                     .pickerStyle(.navigationLink)
+                    .disabled(isImportant)
                 }
 
                 Section("Notes") {
@@ -345,7 +353,8 @@ struct EventEditorView: View {
             location = draft.location ?? ""
             locationLatitude = nil
             locationLongitude = nil
-            notes = draft.notes ?? ""
+            isImportant = EventImportance.isImportant(notes: draft.notes)
+            notes = EventImportance.displayNotes(draft.notes)
             reminderMinutes = draft.reminderMinutes.map { $0 == 0 ? nil : $0 } ?? 15
             repeatOption = .never
             repeatOccurrences = 8
@@ -373,9 +382,10 @@ struct EventEditorView: View {
                 locationLatitude = nil
                 locationLongitude = nil
             }
-            notes = event.notes ?? ""
+            isImportant = EventImportance.isImportant(notes: event.notes)
+            notes = EventImportance.displayNotes(event.notes)
             selectedCalendarIdentifier = event.calendar?.calendarIdentifier
-            reminderMinutes = EventReminderAccess.effectiveMinutes(for: event, in: reminderRows)
+            reminderMinutes = EventReminderAccess.ordinaryMinutes(for: event, in: reminderRows)
             if let rule = event.recurrenceRules?.first {
                 switch rule.frequency {
                 case .daily: repeatOption = .daily
@@ -430,7 +440,7 @@ struct EventEditorView: View {
             } else {
                 event.structuredLocation = nil
             }
-            event.notes = notes.isEmpty ? nil : notes
+            event.notes = EventImportance.notes(notes, settingImportant: isImportant)
             // No EKAlarm here on purpose -- reminders are this app's own
             // local notifications now (see ReminderScheduler), not EventKit
             // alarms, which fire as system Calendar notifications shared
