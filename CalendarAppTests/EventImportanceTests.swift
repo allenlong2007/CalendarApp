@@ -32,6 +32,19 @@ struct EventImportanceTests {
         #expect(EventImportance.displayNotes(EventImportance.notes(original, settingImportant: true)) == original)
     }
 
+    @Test func hidesRoutingMetadataWhilePreservingItOnEdit() {
+        let marker = "[Shivan:request=83F8A09C-7E59-40DF-AAB7-287B34C75B94]"
+        let original = "Bring notes\n" + marker + "\n" + EventImportance.marker
+        #expect(EventImportance.displayNotes(original) == "Bring notes")
+        let edited = EventImportance.notes("New agenda", settingImportant: false, preservingRequestsFrom: original)
+        #expect(edited == "New agenda\n" + marker)
+        #expect(EventImportance.displayNotes(edited) == "New agenda")
+        #expect(EventImportance.notes(original, settingImportant: true) == original)
+        let crlf = "Bring notes\r\n" + marker + "\r\n"
+        #expect(EventImportance.displayNotes(crlf) == "Bring notes\n")
+        #expect(EventImportance.notes("New agenda", settingImportant: false, preservingRequestsFrom: crlf) == "New agenda\n" + marker)
+    }
+
     @Test func importantOverridesReminderAndTurningOffRestoresIt() {
         let event = EKEvent(eventStore: EKEventStore())
         event.notes = EventImportance.notes("Call details", settingImportant: true)
