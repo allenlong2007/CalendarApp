@@ -635,8 +635,8 @@ struct EventRow: View {
     }
 
     private var trimmedNotes: String? {
-        guard let notes = event.notes?.trimmingCharacters(in: .whitespacesAndNewlines),
-              notes.contains(where: \.isLetter) || notes.contains(where: \.isNumber) else { return nil }
+        let notes = EventImportance.displayNotes(event.notes).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard notes.contains(where: \.isLetter) || notes.contains(where: \.isNumber) else { return nil }
         return notes
     }
 

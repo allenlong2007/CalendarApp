@@ -23,5 +23,5 @@ xcrun swiftc -swift-version 6 -parse-as-library \
   scripts/shivan-bridge/Main.swift \
   -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker "$BRIDGE_APP/Contents/Info.plist" \
   -o "$BRIDGE_APP/Contents/MacOS/ShivanCalendarBridge"
-codesign --force --sign - "$BRIDGE_APP"
+codesign --force --sign "${SHIVAN_SIGN_IDENTITY:-Apple Development: footsoregnu3115@gmail.com (2RD5UYGAB4)}" "$BRIDGE_APP"
 printf '%s\n' "$BRIDGE_APP/Contents/MacOS/ShivanCalendarBridge"

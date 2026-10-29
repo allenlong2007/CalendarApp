@@ -59,7 +59,8 @@ struct EventQuickLookView: View {
                 .foregroundStyle(AppTheme.ultramarine)
             }
 
-            if let notes = event.notes, !notes.isEmpty {
+            let notes = EventImportance.displayNotes(event.notes)
+            if !notes.isEmpty {
                 Divider()
                 Text(notes)
                     .font(.subheadline)

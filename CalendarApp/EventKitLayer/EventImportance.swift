@@ -12,17 +12,30 @@ enum EventImportance {
 
     static func displayNotes(_ notes: String?) -> String {
         guard let notes else { return "" }
-        guard isImportant(notes: notes) else { return notes }
+        guard isImportant(notes: notes) || !requestMarkers(notes).isEmpty else { return notes }
         var lines = notes.replacingOccurrences(of: "\r\n", with: "\n")
             .split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-        lines.removeAll { $0 == marker }
+        lines.removeAll { $0 == marker || isRequestMarker($0) }
         return lines.joined(separator: "\n")
     }
 
-    static func notes(_ notes: String?, settingImportant important: Bool) -> String? {
+    static func notes(_ notes: String?, settingImportant important: Bool, preservingRequestsFrom original: String? = nil) -> String? {
         let visible = displayNotes(notes)
-        if important { return visible.isEmpty ? marker : visible + "\n" + marker }
-        return visible.isEmpty ? nil : visible
+        var parts = visible.isEmpty ? [] : [visible]
+        parts += Set(requestMarkers(notes) + requestMarkers(original)).sorted()
+        if important { parts.append(marker) }
+        return parts.isEmpty ? nil : parts.joined(separator: "\n")
+    }
+
+    private static func requestMarkers(_ notes: String?) -> [String] {
+        (notes ?? "").replacingOccurrences(of: "\r\n", with: "\n")
+            .split(separator: "\n").map(String.init).filter(isRequestMarker)
+    }
+
+    private static func isRequestMarker(_ line: String) -> Bool {
+        let prefix = "[Shivan:request="
+        guard line.hasPrefix(prefix), line.hasSuffix("]") else { return false }
+        return UUID(uuidString: String(line.dropFirst(prefix.count).dropLast())) != nil
     }
 
     static func fireDate(start: Date, now: Date) -> Date? {

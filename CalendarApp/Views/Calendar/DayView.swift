@@ -122,7 +122,8 @@ struct DayView: View {
                                                     Text(timeRangeText(for: event))
                                                         .font(.caption2)
                                                 }
-                                                if frame.height > 76, let notes = event.notes?.trimmingCharacters(in: .whitespacesAndNewlines), !notes.isEmpty {
+                                                let notes = EventImportance.displayNotes(event.notes).trimmingCharacters(in: .whitespacesAndNewlines)
+                                                if frame.height > 76, !notes.isEmpty {
                                                     Text(notes)
                                                         .font(.caption2)
                                                         .lineLimit(2)

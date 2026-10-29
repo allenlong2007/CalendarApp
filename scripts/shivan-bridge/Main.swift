@@ -10,10 +10,21 @@ struct ShivanCalendarBridge {
     @MainActor
     static func main() async {
         do {
-            let data = FileHandle.standardInput.readDataToEndOfFile()
+            // A normal app launch must not wait forever for an stdin EOF.
+            // Mutating commands explicitly opt into the JSON stdin contract.
+            let data: Data
+            if let file = argument("--request-file") {
+                let url = try exchangeURL(file)
+                data = try Data(contentsOf: url)
+                guard data.count <= 262144 else { throw CalendarBridgeRequest.Failure.invalid("Request is too large.") }
+            } else {
+                data = CommandLine.arguments.contains("--stdin")
+                    ? FileHandle.standardInput.readDataToEndOfFile() : Data()
+            }
             let request = try JSONDecoder().decode(CalendarBridgeRequest.self,
                 from: data.isEmpty ? Data(#"{"action":"calendars"}"#.utf8) : data)
             try request.validate()
+            _ = NSApplication.shared
             let store = EKEventStore()
             guard try await store.requestFullAccessToEvents() else {
                 throw CalendarBridgeRequest.Failure.invalid("Calendar access denied. Allow Shivan Calendar Bridge in macOS Privacy & Security > Calendars.")
@@ -67,15 +78,8 @@ struct ShivanCalendarBridge {
                 event.endDate = request.endDate!
                 if let allDay = request.allDay { event.isAllDay = allDay }
                 if let location = request.location { event.location = location }
-                let requestMarkers = (event.notes ?? "").split(separator: "\n")
-                    .filter { $0.hasPrefix("[Shivan:request=") && $0.hasSuffix("]") }
-                    .map(String.init)
-                var updatedNotes = request.notes ?? event.notes ?? ""
-                for marker in requestMarkers where !updatedNotes.contains(marker) {
-                    updatedNotes += (updatedNotes.isEmpty ? "" : "\n") + marker
-                }
-                event.notes = EventImportance.notes(updatedNotes,
-                    settingImportant: request.important ?? wasImportant)
+                event.notes = EventImportance.notes(request.notes ?? event.notes,
+                    settingImportant: request.important ?? wasImportant, preservingRequestsFrom: event.notes)
                 try store.save(event, span: .thisEvent)
                 wakeCalendarApp()
                 try output(["updated": record(event)])
@@ -119,8 +123,7 @@ struct ShivanCalendarBridge {
             wakeCalendarApp()
             try output(["created": record(saved)])
         } catch {
-            let data = (try? JSONSerialization.data(withJSONObject: ["error": error.localizedDescription])) ?? Data()
-            FileHandle.standardOutput.write(data + Data("\n".utf8))
+            try? output(["error": error.localizedDescription])
             exit(1)
         }
     }
@@ -135,8 +138,31 @@ struct ShivanCalendarBridge {
     }
 
     static func output(_ value: [String: Any]) throws {
-        let data = try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
-        FileHandle.standardOutput.write(data + Data("\n".utf8))
+        let data = try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]) + Data("\n".utf8)
+        if let file = argument("--response-file") {
+            let url = try exchangeURL(file)
+            try data.write(to: url, options: .atomic)
+            try Data((value["error"] == nil ? "0\n" : "1\n").utf8)
+                .write(to: url.appendingPathExtension("status"), options: .atomic)
+        } else {
+            FileHandle.standardOutput.write(data)
+        }
+    }
+
+    static func argument(_ name: String) -> String? {
+        guard let index = CommandLine.arguments.firstIndex(of: name), index + 1 < CommandLine.arguments.count else { return nil }
+        return CommandLine.arguments[index + 1]
+    }
+
+    static func exchangeURL(_ path: String) throws -> URL {
+        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("ShivanCalendarBridge/exchange", isDirectory: true)
+            .resolvingSymlinksInPath().standardizedFileURL
+        let url = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL
+        guard url.deletingLastPathComponent() == directory else {
+            throw CalendarBridgeRequest.Failure.invalid("Request and response files must be in ShivanCalendarBridge/exchange.")
+        }
+        return url
     }
 
     @MainActor

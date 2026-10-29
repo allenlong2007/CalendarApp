@@ -440,7 +440,7 @@ struct EventEditorView: View {
             } else {
                 event.structuredLocation = nil
             }
-            event.notes = EventImportance.notes(notes, settingImportant: isImportant)
+            event.notes = EventImportance.notes(notes, settingImportant: isImportant, preservingRequestsFrom: event.notes)
             // No EKAlarm here on purpose -- reminders are this app's own
             // local notifications now (see ReminderScheduler), not EventKit
             // alarms, which fire as system Calendar notifications shared
