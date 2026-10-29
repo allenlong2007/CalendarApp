@@ -5,9 +5,9 @@
 My own calendar app, for iPhone and Mac. It used to be a website, but I rebuilt it natively so it could do widgets, lock screen info, and Siri.
 
 <p align="center">
-  <img src="docs/screenshots/01_month.png" width="230" alt="Month view with events" />
-  <img src="docs/screenshots/02_week.png" width="230" alt="Week view with hourly grid" />
-  <img src="docs/screenshots/03_agenda.png" width="230" alt="Agenda list view" />
+  <img src="docs/screenshots/01_month.png" width="230" alt="Month view with colored event dots over the cloud background" />
+  <img src="docs/screenshots/02_day.png" width="230" alt="Day view with an all-day event and a timed event" />
+  <img src="docs/screenshots/03_agenda.png" width="230" alt="Agenda list grouped by day" />
 </p>
 
 ## Why I rebuilt it
@@ -19,6 +19,19 @@ Underneath, it uses Apple's own calendar system, so anything you add syncs throu
 ## What it can do
 
 There are Month, Week, Day, and Agenda views, plus a full event editor with location search. Planner mode lets you rough out a week before committing to real events. You can mark things done, and undo deletes or changes. Widgets show your next event or the day's schedule on the home screen and lock screen. Siri can add an event or tell you what's next. It runs as an actual Mac app too, not just on iPhone. Everything from my old website calendar got pulled in during a one time import, so switching over didn't lose any history. Gmail import is in there as well, off by default, for catching events buried in email.
+
+<sub>Screenshots use sample events.</sub>
+
+## Voice
+
+Tap the mic and talk. It adds, moves, and deletes events, and sets reminders.
+
+- "Add dentist next Thursday at 3" or "add study group Tuesday and next Friday" (several days at once)
+- "Remind me in 6 months to cancel Prime" (becomes an all-day event on that day)
+- "Move this event one day forward," "push the dentist 2 months back," or "move the event from the 21st to the 20th"
+- "Move event A and event B back one day," "delete the gym and the haircut"
+
+You don't have to say a title exactly. A few words are enough to find the event. When a command touches several events or dates, you swipe through a summary card for each one and confirm before anything changes. Moves can be undone.
 
 ## Calendar background
 
