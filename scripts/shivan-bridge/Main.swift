@@ -15,7 +15,7 @@ struct ShivanCalendarBridge {
             let data: Data
             if let file = argument("--request-file") {
                 let url = try exchangeURL(file)
-                data = try Data(contentsOf: url)
+                data = try readRequestFile(url)
                 guard data.count <= 262144 else { throw CalendarBridgeRequest.Failure.invalid("Request is too large.") }
             } else {
                 data = CommandLine.arguments.contains("--stdin")
@@ -154,10 +154,32 @@ struct ShivanCalendarBridge {
         return CommandLine.arguments[index + 1]
     }
 
+    /// Only a private regular file owned by this user is honoured. O_NONBLOCK and
+    /// O_NOFOLLOW stop a FIFO or symlink dropped in the exchange folder from hanging
+    /// the bridge or redirecting it.
+    static func readRequestFile(_ url: URL) throws -> Data {
+        let fd = open(url.path, O_RDONLY | O_NONBLOCK | O_NOFOLLOW)
+        guard fd >= 0 else { throw CalendarBridgeRequest.Failure.invalid("Could not open the request file.") }
+        defer { close(fd) }
+        var info = stat()
+        guard fstat(fd, &info) == 0,
+              (info.st_mode & S_IFMT) == S_IFREG,
+              info.st_uid == getuid(),
+              info.st_mode & 0o077 == 0 else {
+            throw CalendarBridgeRequest.Failure.invalid("The request file must be a private regular file owned by this user.")
+        }
+        guard info.st_size <= 262144 else { throw CalendarBridgeRequest.Failure.invalid("Request is too large.") }
+        return try FileHandle(fileDescriptor: fd, closeOnDealloc: false).readToEnd() ?? Data()
+    }
+
     static func exchangeURL(_ path: String) throws -> URL {
         let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("ShivanCalendarBridge/exchange", isDirectory: true)
             .resolvingSymlinksInPath().standardizedFileURL
+        var dirInfo = stat()
+        guard stat(directory.path, &dirInfo) == 0, dirInfo.st_uid == getuid(), dirInfo.st_mode & 0o077 == 0 else {
+            throw CalendarBridgeRequest.Failure.invalid("The exchange folder must be private to this user.")
+        }
         let url = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL
         guard url.deletingLastPathComponent() == directory else {
             throw CalendarBridgeRequest.Failure.invalid("Request and response files must be in ShivanCalendarBridge/exchange.")
