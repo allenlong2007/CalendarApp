@@ -17,7 +17,7 @@ struct SyncTransport {
     let store: EKEventStore
     let deviceID: String
 
-    static let calendarTitle = "CalendarApp Sync"
+    static let calendarTitle = ReservedCalendars.syncTitle
     static let marker = "CALAPP-SYNC1"
     private static let chunkSize = 48_000
     /// Every snapshot event sits at this one fixed moment (2001-01-01 12:00

@@ -39,7 +39,7 @@ struct ShivanCalendarBridge {
             }
             defer { _ = lockf(lock, F_ULOCK, 0); close(lock) }
             store.refreshSourcesIfNecessary()
-            let calendars = store.calendars(for: .event).filter { $0.title != "CalendarApp Sync" && $0.title != "CalendarApp App Data" }
+            let calendars = store.calendars(for: .event).filter { !ReservedCalendars.titles.contains($0.title) }
             if request.action == .calendars {
                 try output(["calendars": calendars.map { ["id": $0.calendarIdentifier, "title": $0.title, "writable": $0.allowsContentModifications] }])
                 return
@@ -50,7 +50,9 @@ struct ShivanCalendarBridge {
                 return
             }
             if request.action == .delete || request.action == .update {
-                guard let event = store.event(withIdentifier: request.eventID!), event.calendar.allowsContentModifications else {
+                guard let event = store.event(withIdentifier: request.eventID!),
+                      calendars.contains(where: { $0.calendarIdentifier == event.calendar.calendarIdentifier }),
+                      event.calendar.allowsContentModifications else {
                     throw CalendarBridgeRequest.Failure.invalid("The event was not found or is read-only.")
                 }
                 guard !event.hasRecurrenceRules, event.attendees?.isEmpty != false else {
@@ -165,6 +167,7 @@ struct ShivanCalendarBridge {
         guard fstat(fd, &info) == 0,
               (info.st_mode & S_IFMT) == S_IFREG,
               info.st_uid == getuid(),
+              info.st_nlink == 1,
               info.st_mode & 0o077 == 0 else {
             throw CalendarBridgeRequest.Failure.invalid("The request file must be a private regular file owned by this user.")
         }

@@ -7,16 +7,20 @@ enum EventImportance {
     static let marker = "[CalendarApp:important=true]"
 
     static func isImportant(notes: String?) -> Bool {
-        notes?.components(separatedBy: .newlines).contains(marker) == true
+        lines(of: notes).contains(marker)
+    }
+
+    /// Display only: never change the stored title or event identity.
+    static func displayTitle(_ title: String, notes: String?) -> String {
+        isImportant(notes: notes) ? "★ \(title)" : title
     }
 
     static func displayNotes(_ notes: String?) -> String {
         guard let notes else { return "" }
         guard isImportant(notes: notes) || !requestMarkers(notes).isEmpty else { return notes }
-        var lines = notes.replacingOccurrences(of: "\r\n", with: "\n")
-            .split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-        lines.removeAll { $0 == marker || isRequestMarker($0) }
-        return lines.joined(separator: "\n")
+        var kept = notes.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: .newlines)
+        kept.removeAll { let line = $0.trimmingCharacters(in: .whitespaces); return line == marker || isRequestMarker(line) }
+        return kept.joined(separator: "\n")
     }
 
     static func notes(_ notes: String?, settingImportant important: Bool, preservingRequestsFrom original: String? = nil) -> String? {
@@ -27,9 +31,14 @@ enum EventImportance {
         return parts.isEmpty ? nil : parts.joined(separator: "\n")
     }
 
+    /// One rule for every Unicode line break, so a marker that is detected is
+    /// always a marker that is removed.
+    private static func lines(of notes: String?) -> [String] {
+        (notes ?? "").replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
     private static func requestMarkers(_ notes: String?) -> [String] {
-        (notes ?? "").replacingOccurrences(of: "\r\n", with: "\n")
-            .split(separator: "\n").map(String.init).filter(isRequestMarker)
+        lines(of: notes).filter(isRequestMarker)
     }
 
     private static func isRequestMarker(_ line: String) -> Bool {

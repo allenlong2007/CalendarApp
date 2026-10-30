@@ -20,6 +20,7 @@ PLIST
 xcrun swiftc -swift-version 6 -parse-as-library \
   CalendarApp/EventKitLayer/EventImportance.swift \
   CalendarApp/EventKitLayer/CalendarBridgeRequest.swift \
+  CalendarApp/EventKitLayer/ReservedCalendars.swift \
   scripts/shivan-bridge/Main.swift \
   -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker "$BRIDGE_APP/Contents/Info.plist" \
   -o "$BRIDGE_APP/Contents/MacOS/ShivanCalendarBridge"

@@ -54,6 +54,7 @@ struct CreateEventIntent: AppIntent {
         if let calendarTitle, !calendarTitle.isEmpty {
             let matches = store.calendars(for: .event).filter {
                 $0.title.caseInsensitiveCompare(calendarTitle) == .orderedSame && $0.allowsContentModifications
+                    && !ReservedCalendars.titles.contains($0.title)
             }
             guard matches.count == 1 else {
                 return .result(dialog: "Choose one unique writable category in CalendarApp first.")
@@ -62,7 +63,8 @@ struct CreateEventIntent: AppIntent {
         } else {
             calendar = store.defaultCalendarForNewEvents
         }
-        guard let calendar, calendar.allowsContentModifications else {
+        guard let calendar, calendar.allowsContentModifications,
+              !ReservedCalendars.titles.contains(calendar.title) else {
             return .result(dialog: "No writable calendar was found.")
         }
 

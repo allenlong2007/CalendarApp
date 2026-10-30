@@ -70,6 +70,9 @@ targets:
         buildPhase: resources
       - path: CalendarApp/Views/Shared/DateMath.swift
         buildPhase: sources
+      - path: CalendarApp/EventKitLayer/EventImportance.swift
+      - path: CalendarApp/EventKitLayer/ReservedCalendars.swift
+        buildPhase: sources
       - path: CalendarApp/Views/Shared/EventStatusColor.swift
         buildPhase: sources
       - path: CalendarApp/Views/Shared/EventCompletionAccess.swift
