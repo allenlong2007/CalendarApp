@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/screenshots/app-icon.png" width="128" alt="CalendarApp icon" />
+</p>
+
 # CalendarApp
 
 [![Tests](https://github.com/allenlong2007/CalendarApp/actions/workflows/tests.yml/badge.svg)](https://github.com/allenlong2007/CalendarApp/actions/workflows/tests.yml)
