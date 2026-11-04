@@ -24,6 +24,7 @@ struct VoiceEventParser {
         // "at the courts" is read as a location).
         if let notes = extractNotes(&rest) { draft.notes = notes }
         if let explicit = extractExplicitTitle(&rest) { draft.title = capitalized(explicit) }
+        if let important = extractImportance(&rest) { draft.isImportant = important }
         if let minutes = extractReminder(&rest) { draft.reminderMinutes = minutes }
         // "Remind me in 6 months to ...", "set a reminder for Friday at 3": a reminder
         // *is* an event on that day, so only the lead-in words come out.
@@ -84,7 +85,7 @@ struct VoiceEventParser {
             let previous = current.isEmpty ? nil : parse(current, now: now)
             // A conjunction inside a name, note, location, or field list isn't
             // another event. Both sides must describe their own named/time block.
-            let fieldOnly = clause.range(of: #"(?i)^(?:category|calendar|location|notes?|remind|for|at)\b"#, options: .regularExpression) != nil
+            let fieldOnly = clause.range(of: #"(?i)^(?:category|calendar|location|notes?|remind|mark|important|for|at)\b"#, options: .regularExpression) != nil
             if let previous, previous.start != nil, previous.timeKnown, !previous.title.isEmpty,
                candidate.start != nil, candidate.timeKnown, !candidate.title.isEmpty, !fieldOnly {
                 groups.append(current)
@@ -135,13 +136,31 @@ struct VoiceEventParser {
     private func extractExplicitTitle(_ text: inout String) -> String? {
         let label = #"\b(?:call it|name it|title it|titled|called|named|rename (?:it )?to|the title is|title is|title)\s+"#
         if let quoted = extract(label + #"[“\"]([^”\"]+)[”\"]"#, from: &text) { return quoted[1] }
-        return extract(label + #"(.+?)(?=\s+(?:and\s+)?(?:on|at|from|for|every|category|calendar|location|remind|notes?|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|[,.;]|$)"#, from: &text)?[1]
+        return extract(label + #"(.+?)(?=\s+(?:and\s+)?(?:on|at|from|for|every|category|calendar|location|remind|notes?|mark|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|[,.;]|$)"#, from: &text)?[1]
+    }
+
+    private func extractImportance(_ text: inout String) -> Bool? {
+        let subject = #"(?:\s+(?:it|this|that|the event|this event|event))?"#
+        if extract(#"\b(?:(?:mark|set|make|flag)"# + subject + #"\s+(?:as\s+)?)?(?:not important|unimportant|important\s+(?:to\s+)?(?:false|off|no))\b"#, from: &text) != nil {
+            return false
+        }
+        if extract(#"\b(?:(?:mark|set|make|flag)"# + subject + #"\s+(?:as\s+)?important|(?:it|this|that|the event|this event)\s+is\s+important|important\s+(?:to\s+)?(?:true|on|yes))\b"#, from: &text) != nil {
+            return true
+        }
+        let adjective = #"(?i)\b((?:add|create|schedule|book|make|set up|put)\s+(?:me\s+)?(?:an?\s+|the\s+)?)important\s+"#
+        if text.range(of: adjective, options: .regularExpression) != nil {
+            text = text.replacingOccurrences(of: adjective, with: "$1", options: .regularExpression)
+            return true
+        }
+        if extract(#"^\s*(?:an?\s+)?important\s+(?=\w)"#, from: &text) != nil { return true }
+        if extract(#"\b(?:and\s+)?important\s*$"#, from: &text) != nil { return true }
+        return nil
     }
 
     private func extractNotes(_ text: inout String) -> String? {
         let label = #"\b(?:notes?(?:\s+(?:is|are))?|add (?:a )?note(?: saying)?)\s+"#
         if let quoted = extract(label + #"[“\"]([^”\"]+)[”\"]"#, from: &text) { return quoted[1] }
-        return extract(label + #"(.+?)(?=;\s*(?:title|category|calendar|location|remind)\b|$)"#, from: &text)?[1].trimmingCharacters(in: .whitespacesAndNewlines)
+        return extract(label + #"(.+?)(?=;\s*(?:title|category|calendar|location|remind|mark|make)\b|$)"#, from: &text)?[1].trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func extractReminder(_ text: inout String) -> Int? {

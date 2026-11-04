@@ -75,7 +75,7 @@ struct TodayAgendaWidgetView: View {
                         Capsule()
                             .fill(event.color)
                             .frame(width: 3)
-                        Text(event.title)
+                        Text(event.displayTitle)
                             .font(.caption.weight(.medium))
                             .lineLimit(1)
                             .strikethrough(event.completed)

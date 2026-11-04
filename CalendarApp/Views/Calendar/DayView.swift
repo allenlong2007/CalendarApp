@@ -58,7 +58,7 @@ struct DayView: View {
                         ForEach(allDayEvents, id: \.eventIdentifier) { event in
                             HStack(spacing: 6) {
                                 completeButton(for: event)
-                                Text(event.title ?? "")
+                                Text(EventImportance.displayTitle(event.title ?? "", notes: event.notes))
                                     .font(.subheadline.weight(.semibold))
                                     .strikethrough(EventCompletionAccess.isCompleted(event, in: completionRows))
                             }
@@ -110,7 +110,7 @@ struct DayView: View {
                                     .overlay(alignment: .topLeading) {
                                         HStack(alignment: .top, spacing: 4) {
                                             VStack(alignment: .leading, spacing: 2) {
-                                                Text(event.title ?? "")
+                                                Text(EventImportance.displayTitle(event.title ?? "", notes: event.notes))
                                                     .font(.subheadline.weight(.semibold))
                                                     .lineLimit(1)
                                                     .strikethrough(EventCompletionAccess.isCompleted(event, in: completionRows))

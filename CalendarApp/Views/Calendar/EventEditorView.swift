@@ -353,7 +353,7 @@ struct EventEditorView: View {
             location = draft.location ?? ""
             locationLatitude = nil
             locationLongitude = nil
-            isImportant = EventImportance.isImportant(notes: draft.notes)
+            isImportant = draft.effectiveImportance
             notes = EventImportance.displayNotes(draft.notes)
             reminderMinutes = draft.reminderMinutes.map { $0 == 0 ? nil : $0 } ?? 15
             repeatOption = .never

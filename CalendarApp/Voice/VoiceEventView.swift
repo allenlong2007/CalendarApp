@@ -373,9 +373,11 @@ struct VoiceEventView: View {
                 row("Time", timeText(for: draft), missing: "Say a time")
                 categoryRow(for: draft)
                 row("Location", draft.location, missing: "None", optional: true)
+                if draft.effectiveImportance { row("Important", "Yes ★", missing: "") }
                 row("Reminder", reminderText(for: draft), missing: "Default (15 min before)", optional: true)
                 // Notes only appear when copied from another event -- shown so they aren't carried along unseen.
-                if let notes = draft.notes, !notes.isEmpty { row("Notes", notes, missing: "") }
+                let visibleNotes = EventImportance.displayNotes(draft.notes)
+                if !visibleNotes.isEmpty { row("Notes", visibleNotes, missing: "") }
                 if !draft.extraDays.isEmpty {
                     row("Also on", draft.extraDays.sorted().map { DateMath.monthDayFormatter.string(from: $0) }.joined(separator: " · "), missing: "")
                 }
@@ -830,6 +832,7 @@ struct VoiceEventView: View {
     }
 
     private func reminderText(for draft: EventDraft) -> String? {
+        if draft.effectiveImportance { return "30 minutes before" }
         guard let minutes = draft.reminderMinutes else { return nil }
         if minutes == 0 { return "None" }
         if minutes % 1440 == 0 { return "\(minutes / 1440) day\(minutes == 1440 ? "" : "s") before" }
@@ -1178,7 +1181,7 @@ struct VoiceEventView: View {
                     isAllDay: draft.isAllDay,
                     calendar: calendar,
                     location: draft.location,
-                    notes: draft.notes
+                    notes: draft.eventNotes
                 )
                 created.append(event)
                 if let minutes = draft.reminderMinutes {

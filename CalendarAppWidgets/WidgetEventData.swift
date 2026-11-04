@@ -17,6 +17,7 @@ struct EventSummary {
     let eventIdentifier: String?
     let calendarItemExternalIdentifier: String?
     let completed: Bool
+    let important: Bool
     /// Other events with exactly this title and time (see WidgetEventStore.events).
     /// Shown as one row, so a tap has to check them all off together -- otherwise
     /// the widget marks one copy and the row looks unchanged or flips back.
@@ -27,11 +28,13 @@ struct EventSummary {
     var id: String { "\(title)|\(startDate.timeIntervalSince1970)|\(endDate.timeIntervalSince1970)|\(isAllDay)" }
 
     var color: Color { Color(red: colorComponents.red, green: colorComponents.green, blue: colorComponents.blue) }
+    var displayTitle: String { important ? "★ \(title)" : title }
 
     init(event: EKEvent, completed: Bool = false, peers: [EKEvent] = []) {
         peerEventIdentifiers = peers.map { $0.eventIdentifier ?? "" }
         peerExternalIdentifiers = peers.map { $0.calendarItemExternalIdentifier ?? "" }
         title = event.title ?? "Untitled"
+        important = ([event] + peers).contains { EventImportance.isImportant(notes: $0.notes) }
         startDate = event.startDate
         endDate = event.endDate
         isAllDay = event.isAllDay

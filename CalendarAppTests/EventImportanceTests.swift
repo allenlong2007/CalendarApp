@@ -5,6 +5,12 @@ import Testing
 
 @MainActor
 struct EventImportanceTests {
+    @Test func starIsOnlyAddedToImportantDisplayTitles() {
+        let notes = EventImportance.notes("Details", settingImportant: true)
+        #expect(EventImportance.displayTitle("Doctor", notes: notes) == "★ Doctor")
+        #expect(EventImportance.displayTitle("Doctor", notes: "Details") == "Doctor")
+        #expect(EventImportance.displayTitle("Doctor", notes: nil) == "Doctor")
+    }
     @Test func ordinaryEventsRemainUnchanged() {
         #expect(!EventImportance.isImportant(notes: nil))
         #expect(!EventImportance.isImportant(notes: "Bring a notebook"))

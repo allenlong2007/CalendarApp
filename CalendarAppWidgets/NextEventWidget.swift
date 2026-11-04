@@ -80,7 +80,7 @@ struct NextEventWidgetView: View {
         } else if let event = entry.event {
             switch family {
             case .accessoryInline:
-                Text("\(event.title) at \(event.startDate, style: .time)")
+                Text("\(event.displayTitle) at \(event.startDate, style: .time)")
             case .accessoryCircular:
                 circularView(event)
             case .accessoryRectangular:
@@ -124,7 +124,7 @@ struct NextEventWidgetView: View {
                 }
                 .buttonStyle(.plain)
             }
-            Text(event.title)
+            Text(event.displayTitle)
                 .font(.headline)
                 .lineLimit(2)
                 .strikethrough(event.completed)
@@ -139,7 +139,7 @@ struct NextEventWidgetView: View {
 
     private func circularView(_ event: EventSummary) -> some View {
         VStack(spacing: 1) {
-            Image(systemName: "calendar")
+            Image(systemName: event.important ? "star.fill" : "calendar")
                 .font(.caption2)
             Text(event.startDate, style: .time)
                 .font(.caption2.weight(.semibold))
@@ -149,7 +149,7 @@ struct NextEventWidgetView: View {
 
     private func rectangularView(_ event: EventSummary) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(event.title)
+            Text(event.displayTitle)
                 .font(.headline)
                 .lineLimit(1)
             Text(event.isAllDay ? "All-day" : event.startDate.formatted(date: .omitted, time: .shortened))

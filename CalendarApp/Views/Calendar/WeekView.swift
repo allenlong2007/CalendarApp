@@ -92,7 +92,7 @@ struct WeekView: View {
                 ForEach(days, id: \.self) { day in
                     VStack(spacing: 2) {
                         ForEach(map[DateMath.startOfDay(day)] ?? [], id: \.eventIdentifier) { event in
-                            Text(event.title ?? "")
+                            Text(EventImportance.displayTitle(event.title ?? "", notes: event.notes))
                                 .font(.caption2)
                                 .lineLimit(1)
                                 .padding(.horizontal, 3)
@@ -143,7 +143,7 @@ struct WeekView: View {
                                 .fill(colorFor(event))
                                 .overlay(alignment: .topLeading) {
                                     HStack(alignment: .top, spacing: 2) {
-                                        Text(event.title ?? "")
+                                        Text(EventImportance.displayTitle(event.title ?? "", notes: event.notes))
                                             .font(.caption2.weight(.semibold))
                                             .foregroundStyle(.white)
                                             .lineLimit(2)

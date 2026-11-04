@@ -25,7 +25,7 @@ struct EventQuickLookView: View {
                     .frame(width: 4)
                     .frame(maxHeight: .infinity)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(event.title ?? "Untitled")
+                    Text(EventImportance.displayTitle(event.title ?? "Untitled", notes: event.notes))
                         .font(.headline)
                     Text(DateMath.fullDateFormatter.string(from: event.startDate))
                         .font(.subheadline)

@@ -20,6 +20,18 @@ struct EventDraft: Equatable {
     /// Minutes before the event; nil leaves the app's default reminder.
     var reminderMinutes: Int?
     var notes: String?
+    /// Nil means no spoken change. This lets copies retain the source flag.
+    var isImportant: Bool?
+
+    var effectiveImportance: Bool {
+        isImportant ?? EventImportance.isImportant(notes: notes)
+    }
+
+    /// Carry visible notes and importance to each new event, without reusing a
+    /// source event's Shivan handoff ID when duplicating it.
+    var eventNotes: String? {
+        EventImportance.notes(EventImportance.displayNotes(notes), settingImportant: effectiveImportance)
+    }
     /// Set when it should be added on many days ("every Friday until Dec 4").
     var repeatRule: RepeatRule?
     /// Days left out of a repeat ("skip Thanksgiving").

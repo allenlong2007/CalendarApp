@@ -501,7 +501,7 @@ private struct EventChip: View {
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             }
-            Text(event.title ?? "Untitled")
+            Text(EventImportance.displayTitle(event.title ?? "Untitled", notes: event.notes))
                 .font(.caption2.weight(.medium))
                 .lineLimit(1)
         }
@@ -541,6 +541,15 @@ private struct MonthDayCell: View {
                     }
                 }
                 .foregroundStyle(isToday ? Color.white : (isCurrentMonth ? Color.primary : Color.secondary.opacity(0.5)))
+                .overlay(alignment: .topTrailing) {
+                    if events.contains(where: { EventImportance.isImportant(notes: $0.notes) }) {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 7, weight: .bold))
+                            .foregroundStyle(.black)
+                            .offset(x: 5, y: -2)
+                            .accessibilityLabel("Contains important event")
+                    }
+                }
 
             HStack(spacing: 3) {
                 ForEach(Array(events.prefix(3).enumerated()), id: \.offset) { _, event in
@@ -646,7 +655,7 @@ struct EventRow: View {
                 .fill(EventStatusEvaluator.displayColor(for: status, categoryColor: AppTheme.calendarColor(for: event.calendar)))
                 .frame(width: 4)
             VStack(alignment: .leading, spacing: 2) {
-                Text(event.title ?? "Untitled")
+                Text(EventImportance.displayTitle(event.title ?? "Untitled", notes: event.notes))
                     .font(.body.weight(.medium))
                 Text(timeLabel)
                     .font(.caption)

@@ -1,10 +1,66 @@
 import Foundation
+import EventKit
 import Testing
 @testable import CalendarApp
 
 struct VoiceEventParserTests {
     private let parser = VoiceEventParser(calendarTitles: ["Exercise", "Church", "Work", "Game"])
     private let cal = Calendar.current
+
+    @Test func spokenImportantEventKeepsItsTitleAndReminderFlag() {
+        let draft = parser.parse("Add an important dentist appointment tomorrow at 3 pm")
+        #expect(draft.title == "Dentist Appointment")
+        #expect(draft.isImportant == true)
+        #expect(EventImportance.isImportant(notes: draft.eventNotes))
+        #expect(draft.isComplete)
+        let event = EKEvent(eventStore: EKEventStore())
+        event.notes = draft.eventNotes
+        #expect(EventReminderAccess.effectiveMinutes(for: event, in: []) == 30)
+    }
+
+    @Test func importantCanBeAddedAndRemovedInFollowUp() {
+        let draft = parser.parse("Add dentist tomorrow at 3 pm")
+        #expect(draft.isImportant == nil)
+        let marked = parser.parse("mark it as important", applying: draft)
+        #expect(marked.isImportant == true)
+        #expect(marked.title == draft.title)
+        let cleared = parser.parse("actually make it not important", applying: marked)
+        #expect(cleared.isImportant == false)
+        #expect(!EventImportance.isImportant(notes: cleared.eventNotes))
+    }
+
+    @Test func importantInQuotedTitleOrNotesIsNotAnInstruction() {
+        let draft = parser.parse("title \"Important Project\"; tomorrow at 3 pm; notes important details")
+        #expect(draft.title == "Important Project")
+        #expect(draft.notes == "important details")
+        #expect(draft.isImportant == nil)
+    }
+
+    @Test func separateSpokenEventsHaveIndependentImportance() throws {
+        let drafts = try #require(parser.parseMany("add an important dentist appointment Tuesday at 3 pm and add lunch Friday at 12 pm"))
+        #expect(drafts.count == 2)
+        #expect(drafts[0].isImportant == true)
+        #expect(drafts[1].isImportant == nil)
+    }
+
+    @Test func importanceInstructionsDoNotConsumeNotesOrExplicitTitle() {
+        let draft = parser.parse("title dentist checkup tomorrow at 3 pm; notes bring card; mark it important")
+        #expect(draft.title == "Dentist Checkup")
+        #expect(draft.notes == "bring card")
+        #expect(draft.isImportant == true)
+        let trailing = parser.parse("add lunch tomorrow at 1 pm, important")
+        #expect(trailing.title == "Lunch")
+        #expect(trailing.isImportant == true)
+    }
+
+    @Test func copyingImportantEventDoesNotReuseItsHandoffID() {
+        var draft = EventDraft()
+        draft.notes = "Details\n[Shivan:request=83F8A09C-7E59-40DF-AAB7-287B34C75B94]\n[CalendarApp:important=true]"
+        #expect(draft.effectiveImportance)
+        #expect(draft.eventNotes == "Details\n[CalendarApp:important=true]")
+        draft.isImportant = false
+        #expect(draft.eventNotes == "Details")
+    }
 
     @Test func fullSentenceFillsEveryField() {
         let d = parser.parse("Add pickleball practice tomorrow at 6 pm to 8 pm at the Warren tennis courts category exercise")

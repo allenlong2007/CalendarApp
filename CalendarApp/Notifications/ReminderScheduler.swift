@@ -49,7 +49,7 @@ enum ReminderScheduler {
         for (event, fireDate) in candidates {
             let content = UNMutableNotificationContent()
             let important = EventImportance.isImportant(notes: event.notes)
-            content.title = important ? "Shivan · \(event.title ?? "Important event")" : (event.title ?? "Event")
+            content.title = important ? "★ Shivan · \(event.title ?? "Important event")" : (event.title ?? "Event")
             var body = event.isAllDay ? "All-day" : "Starts at \(DateMath.timeFormatter.string(from: event.startDate))"
             if let location = event.location, !location.isEmpty {
                 body += " · \(location)"
